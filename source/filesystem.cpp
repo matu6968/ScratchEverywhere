@@ -1,6 +1,9 @@
 #include <filesystem.hpp>
 #include <os.hpp>
 
+#include <algorithm>
+#include <cstring>
+
 #include <sys/stat.h>
 #include <sys/types.h>
 

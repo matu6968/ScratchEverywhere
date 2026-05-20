@@ -135,9 +135,12 @@ void ControlsMenu::render() {
         return;
     }
     if (applyButton->isPressed({"y"})) {
-        nlohmann::json settings = SettingsManager::getProjectSettings(projectPath);
+        JsonDocument settings = SettingsManager::getProjectSettings(projectPath);
+        if (!settings.contains("controls") || !settings["controls"].is_object()) {
+            settings["controls"] = JsonValue::makeObject();
+        }
         for (const auto &c : controlButtons) {
-            settings["controls"][c.control] = c.controlValue;
+            settings["controls"][c.control] = JsonValue::makeString(c.controlValue);
         }
         SettingsManager::saveProjectSettings(settings, projectPath);
         MenuManager::changeMenu(MenuManager::previousMenu);

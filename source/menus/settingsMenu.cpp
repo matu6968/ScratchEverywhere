@@ -54,10 +54,10 @@ void SettingsMenu::init() {
     UseCostumeUsername = false;
     username = "Player";
 
-    nlohmann::json json = SettingsManager::getConfigSettings();
+    JsonDocument json = SettingsManager::getConfigSettings();
 
-    if (json.contains("UseDectalk") && json["UseDectalk"].is_boolean()) {
-        UseDectalk = json["UseDectalk"].get<bool>();
+    if (json.contains("UseDectalk") && json["UseDectalk"].is_bool()) {
+        UseDectalk = json["UseDectalk"].get_bool();
     }
 
 #ifdef ENABLE_DECTALK
@@ -65,31 +65,31 @@ void SettingsMenu::init() {
     dectalkButton->text->setColor(Math::color(0, 0, 0, 255));
 #endif
 
-    if (json.contains("EnableUsername") && json["EnableUsername"].is_boolean()) {
-        UseCostumeUsername = json["EnableUsername"].get<bool>();
+    if (json.contains("EnableUsername") && json["EnableUsername"].is_bool()) {
+        UseCostumeUsername = json["EnableUsername"].get_bool();
     }
     if (json.contains("Username") && json["Username"].is_string()) {
-        if (json["Username"].get<std::string>().length() <= 9) {
+        if (json["Username"].get_string().length() <= 9) {
             bool hasNonSpace = false;
-            for (char c : json["Username"].get<std::string>()) {
+            for (char c : json["Username"].get_string()) {
                 if (std::isalnum(static_cast<unsigned char>(c)) || c == '_') {
                     hasNonSpace = true;
                 } else if (!std::isspace(static_cast<unsigned char>(c))) {
                     break;
                 }
             }
-            if (hasNonSpace) username = json["Username"].get<std::string>();
+            if (hasNonSpace) username = json["Username"].get_string();
             else username = "Player";
         }
     }
-    if (json.contains("UseProjectsPath") && json["UseProjectsPath"].is_boolean()) {
-        UseProjectsPath = json["UseProjectsPath"].get<bool>();
+    if (json.contains("UseProjectsPath") && json["UseProjectsPath"].is_bool()) {
+        UseProjectsPath = json["UseProjectsPath"].get_bool();
     }
     if (json.contains("ProjectsPath") && json["ProjectsPath"].is_string()) {
-        projectsPath = json["ProjectsPath"].get<std::string>();
+        projectsPath = json["ProjectsPath"].get_string();
     }
-    if (json.contains("MenuMusic") && json["MenuMusic"].is_boolean()) {
-        menuMusic = json["MenuMusic"].get<bool>();
+    if (json.contains("MenuMusic") && json["MenuMusic"].is_bool()) {
+        menuMusic = json["MenuMusic"].get_bool();
     }
 
     updateButtonStates();
@@ -298,14 +298,14 @@ void SettingsMenu::cleanup() {
     }
 
     // save settings
-    nlohmann::json json;
-    json["EnableUsername"] = UseCostumeUsername;
-    json["Username"] = username;
-    json["UseProjectsPath"] = UseProjectsPath;
-    json["ProjectsPath"] = projectsPath;
-    json["MenuMusic"] = menuMusic;
-    json["Language"] = TranslationManager::getLoadedLanguage().key;
-    json["UseDectalk"] = UseDectalk;
+    JsonDocument json = JsonDocument::object();
+    json["EnableUsername"] = JsonValue::makeBool(UseCostumeUsername);
+    json["Username"] = JsonValue::makeString(username);
+    json["UseProjectsPath"] = JsonValue::makeBool(UseProjectsPath);
+    json["ProjectsPath"] = JsonValue::makeString(projectsPath);
+    json["MenuMusic"] = JsonValue::makeBool(menuMusic);
+    json["Language"] = JsonValue::makeString(TranslationManager::getLoadedLanguage().key);
+    json["UseDectalk"] = JsonValue::makeBool(UseDectalk);
     SettingsManager::saveConfigSettings(json);
 
     isInitialized = false;

@@ -36,6 +36,12 @@ void Log::deleteLogFile() {
 }
 
 #else
+static bool fileLoggingDisabled = false;
+
+void Log::disableFileLogging() {
+    fileLoggingDisabled = true;
+}
+
 void Log::log(std::string message, bool printToScreen) {
     if (printToScreen) std::cout << message << std::endl;
     writeToFile(message);
@@ -55,6 +61,7 @@ void Log::logError(std::string message, bool printToScreen) {
 }
 
 void Log::writeToFile(std::string message) {
+    if (fileLoggingDisabled) return;
     if (Render::debugMode) {
         std::string filePath = OS::getScratchFolderLocation() + "log.txt";
         std::ofstream logFile;

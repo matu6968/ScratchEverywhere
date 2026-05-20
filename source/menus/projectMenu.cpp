@@ -132,7 +132,7 @@ void ProjectMenu::render() {
     Input::getInput();
     projectControl->input();
 
-    if (!(settings.contains("MenuMusic") && settings["MenuMusic"].is_boolean() && !settings["MenuMusic"].get<bool>())) {
+    if (!(settings.contains("MenuMusic") && settings["MenuMusic"].is_bool() && !settings["MenuMusic"].get_bool())) {
 #ifdef __NDS__
         if (!Mixer::isSoundPlaying("gfx/nds/mm_ds.wav")) {
             SoundStream *strm = new SoundStream("gfx/nds/mm_ds.wav");

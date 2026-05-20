@@ -1,7 +1,7 @@
 #pragma once
 #include "color.hpp"
 #include "math.hpp"
-#include <nlohmann/json.hpp>
+#include <simdjson.h>
 #include <string>
 
 #include <variant>
@@ -80,5 +80,5 @@ class Value {
     // Used exclusively by the random block
     bool isScratchInt();
 
-    static Value fromJson(const nlohmann::json &jsonVal);
+    static Value fromJson(simdjson::dom::element jsonVal);
 };

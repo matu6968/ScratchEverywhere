@@ -1,4 +1,5 @@
 #include "unpackMenu.hpp"
+#include "json_document.hpp"
 #include "translation.hpp"
 #include <filesystem.hpp>
 #include <log.hpp>
@@ -25,7 +26,7 @@ void UnpackMenu::init() {
 void UnpackMenu::render() {
     Render::beginFrame(0, 181, 165, 111);
     infoText->render(200, 110);
-    descText->render(200, 140);
+    descText->render(200, 150);
 
     Render::beginFrame(1, 181, 165, 111);
 
@@ -40,19 +41,15 @@ void UnpackMenu::cleanup() {
 }
 
 void UnpackMenu::addToJsonArray(const std::string &filePath, const std::string &value) {
-    nlohmann::json j;
+    bool ok = false;
+    JsonDocument document = JsonDocument::parseFile(filePath, ok, false);
+    if (!ok) document = JsonDocument::object();
 
-    std::ifstream inFile(filePath);
-    if (inFile) {
-        inFile >> j;
-    }
-    inFile.close();
-
-    if (!j.contains("items") || !j["items"].is_array()) {
-        j["items"] = nlohmann::json::array();
+    if (!document.contains("items") || !document["items"].is_array()) {
+        document["items"] = JsonValue::makeArray();
     }
 
-    j["items"].push_back(value);
+    document["items"].push_back(JsonValue::makeString(value));
 
     FileSystem::createDirectory(FileSystem::parentPath(filePath));
 
@@ -61,42 +58,38 @@ void UnpackMenu::addToJsonArray(const std::string &filePath, const std::string &
         Log::logError("Failed to write JSON file: " + filePath);
         return;
     }
-    outFile << j.dump(2);
+    outFile << document.dump(2);
     outFile.close();
 }
 
 std::vector<std::string> UnpackMenu::getJsonArray(const std::string &filePath) {
     std::vector<std::string> result;
-    std::ifstream inFile(filePath);
-    if (!inFile) return result;
+    bool ok = false;
+    JsonDocument document = JsonDocument::parseFile(filePath, ok, false);
+    if (!ok) return result;
 
-    nlohmann::json j;
-    inFile >> j;
-    inFile.close();
-
-    if (j.contains("items") && j["items"].is_array()) {
-        for (const auto &el : j["items"]) {
-            result.push_back(el.get<std::string>());
+    if (document.contains("items") && document["items"].is_array()) {
+        for (const auto &element : document["items"].arrayValue) {
+            if (element.is_string()) result.push_back(element.get_string());
         }
     }
     return result;
 }
 
 void UnpackMenu::removeFromJsonArray(const std::string &filePath, const std::string &value) {
-    std::ifstream inFile(filePath);
-    if (!inFile) return;
+    bool ok = false;
+    JsonDocument document = JsonDocument::parseFile(filePath, ok, false);
+    if (!ok || !document.contains("items") || !document["items"].is_array()) return;
 
-    nlohmann::json j;
-    inFile >> j;
-    inFile.close();
-
-    if (j.contains("items") && j["items"].is_array()) {
-        auto &arr = j["items"];
-        arr.erase(std::remove(arr.begin(), arr.end(), value), arr.end());
+    JsonValue filtered = JsonValue::makeArray();
+    for (const auto &element : document["items"].arrayValue) {
+        if (element.is_string() && element.get_string() == value) continue;
+        filtered.push_back(element);
     }
+    document["items"] = filtered;
 
     std::ofstream outFile(filePath);
     if (!outFile) return;
-    outFile << j.dump(2);
+    outFile << document.dump(2);
     outFile.close();
 }

@@ -1,4 +1,5 @@
 #include "value.hpp"
+#include "json_dom.hpp"
 #include "math.hpp"
 #include <array>
 #include <os.hpp>
@@ -179,12 +180,26 @@ bool Value::isScratchInt() {
     return false;
 }
 
-Value Value::fromJson(const nlohmann::json &jsonVal) {
-    if (jsonVal.is_number()) return Value(jsonVal.get<double>());
-    if (jsonVal.is_string()) return Value(jsonVal.get<std::string>());
-    if (jsonVal.is_boolean()) return Value(jsonVal.get<bool>());
+Value Value::fromJson(simdjson::dom::element jsonVal) {
+    if (jsonVal.is_number()) {
+        double value = 0;
+        if (!jsonVal.get_double().get(value)) return Value(0);
+        return Value(value);
+    }
+    if (jsonVal.is_string()) {
+        std::string_view sv;
+        if (jsonVal.get_string().get(sv)) return Value(0);
+        return Value(std::string(sv));
+    }
+    if (jsonVal.is_bool()) {
+        bool value = false;
+        if (jsonVal.get_bool().get(value)) return Value(0);
+        return Value(value);
+    }
     if (jsonVal.is_array()) {
-        if (jsonVal.size() > 1) return fromJson(jsonVal[1]);
+        simdjson::dom::array arr;
+        if (jsonVal.get_array().get(arr)) return Value(0);
+        if (arr.size() > 1) return fromJson(JsonDom::arrayAt(jsonVal, 1));
         return Value(0);
     }
     return Value(0);

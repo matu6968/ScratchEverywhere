@@ -116,15 +116,15 @@ void ProjectSettings::init() {
     settingsControl->enableScrolling = true;
     settingsControl->setScrollLimits();
 
-    nlohmann::json settings = SettingsManager::getProjectSettings(projectPath);
+    JsonDocument settings = SettingsManager::getProjectSettings(projectPath);
 #if defined(__3DS__) || defined(__NDS__)
-    bottomScreenButton->text->setText(createSettingsText("ui.settings.bottom", !settings.is_null() && !settings["settings"].is_null() && !settings["settings"]["bottomScreen"].is_null() && settings["settings"]["bottomScreen"].get<bool>()));
+    bottomScreenButton->text->setText(createSettingsText("ui.settings.bottom", !settings["settings"]["bottomScreen"].is_null() && settings["settings"]["bottomScreen"].get_bool()));
 #endif
 
 #if defined(RENDERER_SDL2) || defined(RENDERER_SDL3)
-    penModeButton->text->setText(createSettingsText("ui.settings.penMode", settings["settings"]["accuratePen"].is_null() || settings["settings"]["accuratePen"].get<bool>(), SettingType::Accuracy));
+    penModeButton->text->setText(createSettingsText("ui.settings.penMode", settings["settings"]["accuratePen"].is_null() || settings["settings"]["accuratePen"].get_bool(), SettingType::Accuracy));
 #else
-    penModeButton->text->setText(createSettingsText("ui.settings.penMode", !settings["settings"]["accuratePen"].is_null() && settings["settings"]["accuratePen"].get<bool>(), SettingType::Accuracy));
+    penModeButton->text->setText(createSettingsText("ui.settings.penMode", !settings["settings"]["accuratePen"].is_null() && settings["settings"]["accuratePen"].get_bool(), SettingType::Accuracy));
 #endif
 
     if (settings["settings"]["accurateCollision"].is_null()) {
@@ -134,13 +134,13 @@ void ProjectSettings::init() {
         collisionButton->text->setText(createSettingsText("ui.settings.collisionMode", true, SettingType::Accuracy));
 #endif
     } else {
-        collisionButton->text->setText(createSettingsText("ui.settings.collisionMode", settings["settings"]["accurateCollision"].get<bool>(), SettingType::Accuracy));
+        collisionButton->text->setText(createSettingsText("ui.settings.collisionMode", settings["settings"]["accurateCollision"].get_bool(), SettingType::Accuracy));
     }
 
-    debugVarsButton->text->setText(createSettingsText("ui.settings.fps", !settings["settings"]["debugVars"].is_null() && settings["settings"]["debugVars"].get<bool>()));
+    debugVarsButton->text->setText(createSettingsText("ui.settings.fps", !settings["settings"]["debugVars"].is_null() && settings["settings"]["debugVars"].get_bool()));
 
     if (!settings["settings"]["sb3InRam"].is_null()) {
-        ramButton->text->setText(createSettingsText("ui.settings.keepProjectInRam", settings["settings"]["sb3InRam"].get<bool>()));
+        ramButton->text->setText(createSettingsText("ui.settings.keepProjectInRam", settings["settings"]["sb3InRam"].get_bool()));
     } else {
 #if defined(__NDS__) || defined(__PSP__) || defined(GAMECUBE)
         ramButton->text->setText(createSettingsText("ui.settings.keepProjectInRam", false));
@@ -150,7 +150,7 @@ void ProjectSettings::init() {
     }
 
     if (!settings["settings"]["warpTimer"].is_null()) {
-        refreshLimitButton->text->setText(createSettingsText("ui.settings.warp", settings["settings"]["warpTimer"].get<bool>()));
+        refreshLimitButton->text->setText(createSettingsText("ui.settings.warp", settings["settings"]["warpTimer"].get_bool()));
     } else refreshLimitButton->text->setText(createSettingsText("ui.settings.warp", true));
 
     isInitialized = true;
@@ -167,49 +167,49 @@ void ProjectSettings::render() {
     }
 #if defined(__3DS__) || defined(__NDS__)
     if (bottomScreenButton->isPressed()) {
-        nlohmann::json settings = SettingsManager::getProjectSettings(projectPath);
-        settings["settings"]["bottomScreen"] = !settings["settings"].value("bottomScreen", false);
+        JsonDocument settings = SettingsManager::getProjectSettings(projectPath);
+        settings["settings"]["bottomScreen"] = JsonValue::makeBool(!settings["settings"].valueBool("bottomScreen", false));
         SettingsManager::saveProjectSettings(settings, projectPath);
-        bottomScreenButton->text->setText(createSettingsText("ui.settings.bottom", settings["settings"]["bottomScreen"]));
+        bottomScreenButton->text->setText(createSettingsText("ui.settings.bottom", settings["settings"]["bottomScreen"].get_bool()));
     }
 #endif
     if (penModeButton->isPressed()) {
-        nlohmann::json settings = SettingsManager::getProjectSettings(projectPath);
-        settings["settings"]["accuratePen"] = !settings["settings"].value("accuratePen", true);
+        JsonDocument settings = SettingsManager::getProjectSettings(projectPath);
+        settings["settings"]["accuratePen"] = JsonValue::makeBool(!settings["settings"].valueBool("accuratePen", true));
         SettingsManager::saveProjectSettings(settings, projectPath);
-        penModeButton->text->setText(createSettingsText("ui.settings.penMode", settings["settings"]["accuratePen"], SettingType::Accuracy));
+        penModeButton->text->setText(createSettingsText("ui.settings.penMode", settings["settings"]["accuratePen"].get_bool(), SettingType::Accuracy));
     }
     if (collisionButton->isPressed()) {
-        nlohmann::json settings = SettingsManager::getProjectSettings(projectPath);
+        JsonDocument settings = SettingsManager::getProjectSettings(projectPath);
 #ifdef __NDS__
-        settings["settings"]["accurateCollision"] = !settings["settings"].value("accurateCollision", false);
+        settings["settings"]["accurateCollision"] = JsonValue::makeBool(!settings["settings"].valueBool("accurateCollision", false));
 #else
-        settings["settings"]["accurateCollision"] = !settings["settings"].value("accurateCollision", true);
+        settings["settings"]["accurateCollision"] = JsonValue::makeBool(!settings["settings"].valueBool("accurateCollision", true));
 #endif
         SettingsManager::saveProjectSettings(settings, projectPath);
-        collisionButton->text->setText(createSettingsText("ui.settings.collisionMode", settings["settings"]["accurateCollision"], SettingType::Accuracy));
+        collisionButton->text->setText(createSettingsText("ui.settings.collisionMode", settings["settings"]["accurateCollision"].get_bool(), SettingType::Accuracy));
     }
     if (debugVarsButton->isPressed()) {
-        nlohmann::json settings = SettingsManager::getProjectSettings(projectPath);
-        settings["settings"]["debugVars"] = !settings["settings"].value("debugVars", false);
+        JsonDocument settings = SettingsManager::getProjectSettings(projectPath);
+        settings["settings"]["debugVars"] = JsonValue::makeBool(!settings["settings"].valueBool("debugVars", false));
         SettingsManager::saveProjectSettings(settings, projectPath);
-        debugVarsButton->text->setText(createSettingsText("ui.settings.fps", settings["settings"]["debugVars"]));
+        debugVarsButton->text->setText(createSettingsText("ui.settings.fps", settings["settings"]["debugVars"].get_bool()));
     }
     if (ramButton->isPressed()) {
-        nlohmann::json settings = SettingsManager::getProjectSettings(projectPath);
+        JsonDocument settings = SettingsManager::getProjectSettings(projectPath);
 #if defined(__NDS__) || defined(__PSP__) || defined(GAMECUBE)
-        settings["settings"]["sb3InRam"] = !settings["settings"].value("sb3InRam", false);
+        settings["settings"]["sb3InRam"] = JsonValue::makeBool(!settings["settings"].valueBool("sb3InRam", false));
 #else
-        settings["settings"]["sb3InRam"] = !settings["settings"].value("sb3InRam", true);
+        settings["settings"]["sb3InRam"] = JsonValue::makeBool(!settings["settings"].valueBool("sb3InRam", true));
 #endif
         SettingsManager::saveProjectSettings(settings, projectPath);
-        ramButton->text->setText(createSettingsText("ui.settings.keepProjectInRam", settings["settings"]["sb3InRam"]));
+        ramButton->text->setText(createSettingsText("ui.settings.keepProjectInRam", settings["settings"]["sb3InRam"].get_bool()));
     }
     if (refreshLimitButton->isPressed()) {
-        nlohmann::json settings = SettingsManager::getProjectSettings(projectPath);
-        settings["settings"]["warpTimer"] = !settings["settings"].value("warpTimer", true);
+        JsonDocument settings = SettingsManager::getProjectSettings(projectPath);
+        settings["settings"]["warpTimer"] = JsonValue::makeBool(!settings["settings"].valueBool("warpTimer", true));
         SettingsManager::saveProjectSettings(settings, projectPath);
-        refreshLimitButton->text->setText(createSettingsText("ui.settings.warp", settings["settings"]["warpTimer"]));
+        refreshLimitButton->text->setText(createSettingsText("ui.settings.warp", settings["settings"]["warpTimer"].get_bool()));
     }
     if (UnpackProjectButton->isPressed({"a"})) {
         cleanup();

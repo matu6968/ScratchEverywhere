@@ -3,7 +3,7 @@
 #include "blockExecutor.hpp"
 #include "collision.hpp"
 #include "math.hpp"
-#include "nlohmann/json.hpp"
+#include "parser.hpp"
 #include "settings.hpp"
 #include "sprite.hpp"
 #include "translation.hpp"
@@ -264,6 +264,14 @@ bool Scratch::startScratchProject() {
 }
 
 void Scratch::cleanupScratchProject() {
+#ifdef ENABLE_CLOUDVARS
+    Parser::shutdownCloud();
+#endif
+
+    Unzip::projectParser = simdjson::dom::parser();
+    Unzip::nestedParser = simdjson::dom::parser();
+    Unzip::projectJsonValid = false;
+
     Scratch::cleanupSprites();
     costumeImages.clear();
     Mixer::cleanupAudio();

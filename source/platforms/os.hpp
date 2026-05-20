@@ -1,5 +1,7 @@
 #pragma once
-#include <settings.hpp>
+#include "os.hpp"
+#include "settings.hpp"
+#include <json_document.hpp>
 #include <string>
 
 namespace OS {
@@ -35,9 +37,9 @@ inline std::string getCustomScratchFolderLocation() {
     if (!loadedSettings) {
         loadedSettings = true;
 
-        nlohmann::json json = SettingsManager::getConfigSettings();
+        JsonDocument json = SettingsManager::getConfigSettings();
 
-        if (json.contains("ProjectsPath") && json["ProjectsPath"].is_string() && json.contains("UseProjectsPath") && json["UseProjectsPath"].is_boolean() && json["UseProjectsPath"] == true) customProjectsPath = new std::string(json["ProjectsPath"].get<std::string>());
+        if (json.contains("ProjectsPath") && json["ProjectsPath"].is_string() && json.contains("UseProjectsPath") && json["UseProjectsPath"].is_bool() && json["UseProjectsPath"].get_bool()) customProjectsPath = new std::string(json["ProjectsPath"].get_string());
     }
 
     if (customProjectsPath != nullptr) return customProjectsPath->back() == '/' ? *customProjectsPath : *customProjectsPath + "/";

@@ -16,47 +16,31 @@ void SettingsManager::migrate() {
     }
 }
 
-nlohmann::json SettingsManager::getConfigSettings() {
+JsonDocument SettingsManager::getConfigSettings() {
     migrate();
 
-    nlohmann::json json = nlohmann::json::object();
-
-    std::ifstream file(OS::getConfigFolderLocation() + "Settings.json");
-    if (!file.good()) {
-        Log::logWarning("Failed to open Config file: " + OS::getConfigFolderLocation() + "Settings.json");
-        return json;
-    }
-
-    file >> json;
-    file.close();
+    bool ok = false;
+    JsonDocument json = JsonDocument::parseFile(OS::getConfigFolderLocation() + "Settings.json", ok);
+    if (!ok) return JsonDocument::object();
+    if (!json.root.is_object()) return JsonDocument::object();
     return json;
 }
 
-void SettingsManager::saveConfigSettings(const nlohmann::json &json) {
+void SettingsManager::saveConfigSettings(const JsonDocument &json) {
     std::ofstream outFile(OS::getConfigFolderLocation() + "Settings.json");
     outFile << json.dump(4);
     outFile.close();
 }
 
-nlohmann::json SettingsManager::getProjectSettings(const std::string &projectName) {
-    nlohmann::json json = nlohmann::json::object();
-
-    std::ifstream file(OS::getScratchFolderLocation() + projectName + ".sb3.json");
-    if (!file.good()) {
-        Log::logWarning("Failed to open project config file: " + OS::getScratchFolderLocation() + projectName + ".sb3.json");
-        if (!json.contains("settings")) json["settings"] = nlohmann::json::object();
-        return json;
-    }
-
-    file >> json;
-    file.close();
-
-    if (!json.is_object()) json = nlohmann::json::object();
-    if (!json.contains("settings")) json["settings"] = nlohmann::json::object();
+JsonDocument SettingsManager::getProjectSettings(const std::string &projectName) {
+    bool ok = false;
+    JsonDocument json = JsonDocument::parseFile(OS::getScratchFolderLocation() + projectName + ".sb3.json", ok, true);
+    if (!ok || !json.root.is_object()) json = JsonDocument::object();
+    if (!json.contains("settings") || !json["settings"].is_object()) json["settings"] = JsonValue::makeObject();
     return json;
 }
 
-void SettingsManager::saveProjectSettings(const nlohmann::json &json, const std::string &projectName) {
+void SettingsManager::saveProjectSettings(const JsonDocument &json, const std::string &projectName) {
     std::ofstream outFile(OS::getScratchFolderLocation() + projectName + ".sb3.json");
     outFile << json.dump(4);
     outFile.close();

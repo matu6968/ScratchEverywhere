@@ -90,7 +90,7 @@ void LanguageMenu::cleanup() {
         delete control;
         control = nullptr;
     }
-    nlohmann::json json = SettingsManager::getConfigSettings();
-    json["Language"] = TranslationManager::getLoadedLanguage().key;
+    JsonDocument json = SettingsManager::getConfigSettings();
+    json["Language"] = JsonValue::makeString(TranslationManager::getLoadedLanguage().key);
     SettingsManager::saveConfigSettings(json);
 }

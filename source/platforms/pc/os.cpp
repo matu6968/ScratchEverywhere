@@ -1,6 +1,8 @@
 #include <log.hpp>
 #include <os.hpp>
 
+#include <filesystem>
+
 #if defined(_WIN32) || defined(_WIN64)
 #include <direct.h>
 #include <io.h>
@@ -90,13 +92,19 @@ std::string OS::getScratchFolderLocation() {
     const std::string custom = getCustomScratchFolderLocation();
     if (!custom.empty()) return custom;
 
+    static std::string cachedDefaultScratchFolder;
+    static bool cachedDefaultScratchFolderReady = false;
+    if (cachedDefaultScratchFolderReady) return cachedDefaultScratchFolder;
+
     const char *basepath = __getbasepath();
     std::string cpp_basepath = basepath ? basepath : "";
 #if defined(_WIN32) || defined(_WIN64)
-    return cpp_basepath + "scratch-everywhere\\";
+    cachedDefaultScratchFolder = cpp_basepath + "scratch-everywhere\\";
 #else
-    return cpp_basepath + "scratch-everywhere/";
+    cachedDefaultScratchFolder = cpp_basepath + "scratch-everywhere/";
 #endif
+    cachedDefaultScratchFolderReady = true;
+    return cachedDefaultScratchFolder;
 }
 
 std::string OS::getRomFSLocation() {

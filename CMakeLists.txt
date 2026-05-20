@@ -412,7 +412,7 @@ target_include_directories(ryuJS PUBLIC
 )
 target_link_libraries(se-interface INTERFACE ryuJS)
 
-se_add_dependency(se-interface nlohmann_json)
+se_add_dependency(se-interface simdjson)
 se_add_dependency(se-interface miniz)
 se_add_dependency(se-interface expected-lite)
 se_add_dependency(se-interface __getexecname)

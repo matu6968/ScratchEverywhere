@@ -97,28 +97,33 @@ void Parser::initMist() {
     cloudConnection->connect(false);
 #endif
 }
+
+void Parser::shutdownCloud() {
+    cloudConnection.reset();
+    Scratch::cloudProject = false;
+}
 #endif
 
 void Parser::loadUsernameFromSettings() {
     Scratch::customUsername = "Player";
     Scratch::useCustomUsername = false;
 
-    nlohmann::json j = SettingsManager::getConfigSettings();
+    JsonDocument j = SettingsManager::getConfigSettings();
 
-    if (j.contains("EnableUsername") && j["EnableUsername"].is_boolean()) {
-        Scratch::useCustomUsername = j["EnableUsername"].get<bool>();
+    if (j.contains("EnableUsername") && j["EnableUsername"].is_bool()) {
+        Scratch::useCustomUsername = j["EnableUsername"].get_bool();
     }
 
     if (j.contains("Username") && j["Username"].is_string()) {
         bool hasNonSpace = false;
-        for (char c : j["Username"].get<std::string>()) {
+        for (char c : j["Username"].get_string()) {
             if (std::isalnum(static_cast<unsigned char>(c)) || c == '_') {
                 hasNonSpace = true;
             } else if (!std::isspace(static_cast<unsigned char>(c))) {
                 break;
             }
         }
-        if (hasNonSpace) Scratch::customUsername = j["Username"].get<std::string>();
+        if (hasNonSpace) Scratch::customUsername = j["Username"].get_string();
         else Scratch::customUsername = "Player";
     }
 }
@@ -131,64 +136,69 @@ void Parser::log(const std::string &message) {
     }
 }
 
-void Parser::loadSprites(const nlohmann::json &json) {
+void Parser::loadSprites(simdjson::dom::element json) {
     Parser::logParsing = false; // ToDo: Activate it via Settings (Only if Logs in generall are enabled)
     Parser::log("Loading sprites:");
-    const nlohmann::json &spritesData = json["targets"];
-    int spriteAmount = spritesData.size();
+    simdjson::dom::element spritesData;
+    if (json["targets"].get(spritesData)) return;
+
+    int spriteAmount = static_cast<int>(JsonDom::arraySize(spritesData));
     Scratch::sprites.reserve(spriteAmount);
 
-    for (const auto &target : spritesData) {
+    simdjson::dom::array targetsArray;
+    if (spritesData.get_array().get(targetsArray)) return;
+
+    for (simdjson::dom::element target : targetsArray) {
         Sprite *newSprite = new Sprite();
 
         // Basic properties
-        if (target.contains("name")) {
-            newSprite->name = target["name"].get<std::string>();
+        if (auto name = JsonDom::getString(target, "name")) {
+            newSprite->name = *name;
         }
-        if (target.contains("isStage")) {
-            newSprite->isStage = target["isStage"].get<bool>();
+        if (JsonDom::hasKey(target, "isStage")) {
+            newSprite->isStage = JsonDom::getBool(target, "isStage").value_or(false);
             if (newSprite->isStage) loadAdvancedProjectSettings(target);
         }
 
         Parser::log(newSprite->name + " (" + std::string(newSprite->isStage ? "Stage" : "Sprite") + ")");
 
-        if (target.contains("draggable")) {
-            newSprite->draggable = target["draggable"].get<bool>();
+        if (JsonDom::hasKey(target, "draggable")) {
+            newSprite->draggable = JsonDom::getBool(target, "draggable").value_or(false);
         }
-        if (target.contains("visible")) {
-            newSprite->visible = target["visible"].get<bool>();
+        if (JsonDom::hasKey(target, "visible")) {
+            newSprite->visible = JsonDom::getBool(target, "visible").value_or(true);
         } else {
             newSprite->visible = true;
         }
-        if (target.contains("currentCostume")) {
-            newSprite->currentCostume = target["currentCostume"].get<int>();
+        if (JsonDom::hasKey(target, "currentCostume")) {
+            newSprite->currentCostume = JsonDom::getIntOr(target, "currentCostume", 0);
         }
-        if (target.contains("volume")) {
-            newSprite->volume = target["volume"].get<int>();
+        if (JsonDom::hasKey(target, "volume")) {
+            newSprite->volume = JsonDom::getIntOr(target, "volume", 100);
         }
-        if (target.contains("x")) {
-            newSprite->xPosition = target["x"].get<float>();
+        if (JsonDom::hasKey(target, "x")) {
+            newSprite->xPosition = static_cast<float>(JsonDom::getDoubleOr(target, "x", 0));
         }
-        if (target.contains("y")) {
-            newSprite->yPosition = target["y"].get<float>();
+        if (JsonDom::hasKey(target, "y")) {
+            newSprite->yPosition = static_cast<float>(JsonDom::getDoubleOr(target, "y", 0));
         }
-        if (target.contains("size")) {
-            newSprite->size = target["size"].get<float>();
+        if (JsonDom::hasKey(target, "size")) {
+            newSprite->size = static_cast<float>(JsonDom::getDoubleOr(target, "size", 100));
         } else {
             newSprite->size = 100;
         }
-        if (target.contains("direction")) {
-            newSprite->rotation = target["direction"].get<float>();
+        if (JsonDom::hasKey(target, "direction")) {
+            newSprite->rotation = static_cast<float>(JsonDom::getDoubleOr(target, "direction", 90));
         } else {
             newSprite->rotation = 90;
         }
-        if (target.contains("layerOrder")) {
-            newSprite->layer = target["layerOrder"].get<int>();
+        if (JsonDom::hasKey(target, "layerOrder")) {
+            newSprite->layer = JsonDom::getIntOr(target, "layerOrder", 0);
         } else {
             newSprite->layer = 0;
         }
-        if (target.contains("rotationStyle")) {
-            std::string style = target["rotationStyle"].get<std::string>();
+        if (JsonDom::hasKey(target, "rotationStyle")) {
+            std::string style = JsonDom::getString(target, "rotationStyle").value_or("");
             if (style == "all around")
                 newSprite->rotationStyle = newSprite->ALL_AROUND;
             else if (style == "left-right")
@@ -199,112 +209,139 @@ void Parser::loadSprites(const nlohmann::json &json) {
         newSprite->isClone = false;
 
         // Variables
-        if (target.contains("variables") && !target["variables"].empty()) {
+        if (JsonDom::hasKey(target, "variables") && !JsonDom::isEmptyObject(target["variables"])) {
             Parser::log("\tVariables:");
-            for (const auto &[id, data] : target["variables"].items()) {
-                Variable newVariable;
-                newVariable.id = id;
-                newVariable.name = data[0];
-                newVariable.value = Value::fromJson(data[1]);
+            simdjson::dom::object variablesObj;
+            if (!target["variables"].get_object().get(variablesObj)) {
+                for (auto [id, data] : variablesObj) {
+                    Variable newVariable;
+                    newVariable.id = std::string(id);
+                    newVariable.name = JsonDom::getStringValue(JsonDom::arrayAt(data, 0)).value_or("");
+                    newVariable.value = Value::fromJson(JsonDom::arrayAt(data, 1));
 #ifdef ENABLE_CLOUDVARS
-                newVariable.cloud = data.size() == 3;
-                Scratch::cloudProject = Scratch::cloudProject || newVariable.cloud;
+                    newVariable.cloud = JsonDom::arraySize(data) == 3;
+                    Scratch::cloudProject = Scratch::cloudProject || newVariable.cloud;
 #endif
-                newSprite->variables[newVariable.id] = newVariable;
-                Parser::log("\t\t" + newVariable.name + " = " + newVariable.value.asString());
+                    newSprite->variables[newVariable.id] = newVariable;
+                    Parser::log("\t\t" + newVariable.name + " = " + newVariable.value.asString());
+                }
             }
         }
 
         // Lists
-        if (target.contains("lists") && !target["lists"].empty()) {
+        if (JsonDom::hasKey(target, "lists") && !JsonDom::isEmptyObject(target["lists"])) {
             Parser::log("\tLists:");
-            for (const auto &[id, data] : target["lists"].items()) {
-                auto result = newSprite->lists.try_emplace(id).first;
-                List &newList = result->second;
-                newList.id = id;
-                newList.name = data[0];
-                newList.items.reserve(data[1].size());
-                Parser::log("\t\t" + newList.name + " [" + std::to_string(data[1].size()) + " items]");
-                for (const auto &listItem : data[1]) {
-                    newList.items.push_back(Value::fromJson(listItem));
+            simdjson::dom::object listsObj;
+            if (!target["lists"].get_object().get(listsObj)) {
+                for (auto [id, data] : listsObj) {
+                    auto result = newSprite->lists.try_emplace(std::string(id)).first;
+                    List &newList = result->second;
+                    newList.id = std::string(id);
+                    newList.name = JsonDom::getStringValue(JsonDom::arrayAt(data, 0)).value_or("");
+                    simdjson::dom::element listItems = JsonDom::arrayAt(data, 1);
+                    newList.items.reserve(JsonDom::arraySize(listItems));
+                    Parser::log("\t\t" + newList.name + " [" + std::to_string(JsonDom::arraySize(listItems)) + " items]");
+                    simdjson::dom::array itemsArray;
+                    if (!listItems.get_array().get(itemsArray)) {
+                        for (simdjson::dom::element listItem : itemsArray) {
+                            newList.items.push_back(Value::fromJson(listItem));
+                        }
+                    }
                 }
             }
         }
 
         // Sounds
-        if (target.contains("sounds") && !target["sounds"].empty()) {
+        if (JsonDom::hasKey(target, "sounds") && !JsonDom::isEmptyArray(target["sounds"])) {
             Parser::log("\tSounds:");
-            for (const auto &[id, data] : target["sounds"].items()) {
-                Sound newSound;
-                newSound.id = data["assetId"];
-                newSound.name = data["name"];
-                newSound.fullName = data["md5ext"];
-                newSound.dataFormat = data["dataFormat"];
-                newSound.sampleRate = data["rate"];
-                newSound.sampleCount = data["sampleCount"];
-                newSprite->sounds.push_back(newSound);
-                Parser::log("\t\t" + newSound.name);
+            simdjson::dom::array soundsArray;
+            if (!target["sounds"].get_array().get(soundsArray)) {
+                for (simdjson::dom::element data : soundsArray) {
+                    Sound newSound;
+                    newSound.id = JsonDom::getString(data, "assetId").value_or("");
+                    newSound.name = JsonDom::getString(data, "name").value_or("");
+                    newSound.fullName = JsonDom::getString(data, "md5ext").value_or("");
+                    newSound.dataFormat = JsonDom::getString(data, "dataFormat").value_or("");
+                    newSound.sampleRate = JsonDom::getIntOr(data, "rate", 0);
+                    newSound.sampleCount = JsonDom::getIntOr(data, "sampleCount", 0);
+                    newSprite->sounds.push_back(newSound);
+                    Parser::log("\t\t" + newSound.name);
+                }
             }
         }
 
         // Costumes
-        if (target.contains("costumes") && !target["costumes"].empty()) {
+        if (JsonDom::hasKey(target, "costumes") && !JsonDom::isEmptyArray(target["costumes"])) {
             Parser::log("\tCostumes:");
-            for (const auto &[id, data] : target["costumes"].items()) {
-                Costume newCostume;
-                newCostume.id = data["assetId"];
-                if (data.contains("name")) {
-                    newCostume.name = data["name"];
+            simdjson::dom::array costumesArray;
+            if (!target["costumes"].get_array().get(costumesArray)) {
+                for (simdjson::dom::element data : costumesArray) {
+                    Costume newCostume;
+                    newCostume.id = JsonDom::getString(data, "assetId").value_or("");
+                    if (JsonDom::hasKey(data, "name")) {
+                        newCostume.name = JsonDom::getString(data, "name").value_or("");
+                    }
+                    if (JsonDom::hasKey(data, "bitmapResolution")) {
+                        newCostume.bitmapResolution = JsonDom::getIntOr(data, "bitmapResolution", 1);
+                    }
+                    if (JsonDom::hasKey(data, "dataFormat")) {
+                        newCostume.dataFormat = JsonDom::getString(data, "dataFormat").value_or("");
+                        newCostume.isSVG = (newCostume.dataFormat == "svg" || newCostume.dataFormat == "SVG");
+                    }
+                    if (JsonDom::hasKey(data, "md5ext")) {
+                        newCostume.fullName = JsonDom::getString(data, "md5ext").value_or("");
+                    }
+                    if (JsonDom::hasKey(data, "rotationCenterX")) {
+                        newCostume.rotationCenterX = JsonDom::getIntOr(data, "rotationCenterX", 0);
+                        if (Scratch::bitmapHalfQuality && !newCostume.isSVG && newCostume.bitmapResolution == 2) newCostume.rotationCenterX /= 2;
+                    }
+                    if (JsonDom::hasKey(data, "rotationCenterY")) {
+                        newCostume.rotationCenterY = JsonDom::getIntOr(data, "rotationCenterY", 0);
+                        if (Scratch::bitmapHalfQuality && !newCostume.isSVG && newCostume.bitmapResolution == 2) newCostume.rotationCenterY /= 2;
+                    }
+                    if (Scratch::bitmapHalfQuality) newCostume.bitmapResolution = 1;
+                    newSprite->costumes.push_back(newCostume);
+                    Parser::log("\t\t" + newCostume.name);
                 }
-                if (data.contains("bitmapResolution")) {
-                    newCostume.bitmapResolution = data["bitmapResolution"];
-                }
-                if (data.contains("dataFormat")) {
-                    newCostume.dataFormat = data["dataFormat"];
-                    newCostume.isSVG = (newCostume.dataFormat == "svg" || newCostume.dataFormat == "SVG");
-                }
-                if (data.contains("md5ext")) {
-                    newCostume.fullName = data["md5ext"];
-                }
-                if (data.contains("rotationCenterX")) {
-                    newCostume.rotationCenterX = data["rotationCenterX"];
-                    if (Scratch::bitmapHalfQuality && !newCostume.isSVG && newCostume.bitmapResolution == 2) newCostume.rotationCenterX /= 2;
-                }
-                if (data.contains("rotationCenterY")) {
-                    newCostume.rotationCenterY = data["rotationCenterY"];
-                    if (Scratch::bitmapHalfQuality && !newCostume.isSVG && newCostume.bitmapResolution == 2) newCostume.rotationCenterY /= 2;
-                }
-                if (Scratch::bitmapHalfQuality) newCostume.bitmapResolution = 1;
-                newSprite->costumes.push_back(newCostume);
-                Parser::log("\t\t" + newCostume.name);
             }
         }
 
         // Broadcasts
-        if (target.contains("broadcasts") && !target["broadcasts"].empty()) {
-            for (const auto &[id, data] : target["broadcasts"].items()) {
-                Broadcast newBroadcast;
-                newBroadcast.id = id;
-                newBroadcast.name = data;
-                newSprite->broadcasts[newBroadcast.id] = newBroadcast;
+        if (JsonDom::hasKey(target, "broadcasts") && !JsonDom::isEmptyObject(target["broadcasts"])) {
+            simdjson::dom::object broadcastsObj;
+            if (!target["broadcasts"].get_object().get(broadcastsObj)) {
+                for (auto [id, data] : broadcastsObj) {
+                    Broadcast newBroadcast;
+                    newBroadcast.id = std::string(id);
+                    newBroadcast.name = JsonDom::getStringValue(data).value_or("");
+                    newSprite->broadcasts[newBroadcast.id] = newBroadcast;
+                }
             }
         }
 
         std::vector<std::string> procedureCallBlocks;
 
-        if (target.contains("blocks") && !target["blocks"].empty()) {
+        if (JsonDom::hasKey(target, "blocks") && !JsonDom::isEmptyObject(target["blocks"])) {
             Parser::log("\tBlocks:");
 
-            for (const auto &[id, data] : target["blocks"].items()) {
-                if (data.contains("opcode") && data["opcode"].get<std::string>() == "procedures_definition") {
-                    procedureCallBlocks.push_back(id);
+            simdjson::dom::element blocksData;
+            target["blocks"].get(blocksData);
+            simdjson::dom::object blocksObj;
+            if (blocksData.get_object().get(blocksObj)) {
+                blocksObj = {};
+            }
+
+            for (auto [id, data] : blocksObj) {
+                std::string blockId(id);
+                if (JsonDom::hasKey(data, "opcode") && JsonDom::getString(data, "opcode") == "procedures_definition") {
+                    procedureCallBlocks.push_back(blockId);
                     continue;
                 }
 
-                if (!data.contains("topLevel") || !data["topLevel"].get<bool>()) continue;
-                if (!data.contains("opcode")) continue;
+                if (!JsonDom::hasKey(data, "topLevel") || !JsonDom::getBool(data, "topLevel").value_or(false)) continue;
+                if (!JsonDom::hasKey(data, "opcode")) continue;
 
-                std::string opcode = data["opcode"].get<std::string>();
+                std::string opcode = JsonDom::getString(data, "opcode").value_or("");
                 Block *newBlock = new Block();
 
                 newBlock->opcode = opcode;
@@ -320,49 +357,53 @@ void Parser::loadSprites(const nlohmann::json &json) {
                 }
 
                 Parser::log("\t\t" + opcode);
-                loadInputs(*newBlock, newSprite, id, target["blocks"], 2);
-                loadFields(*newBlock, id, target["blocks"], 2);
+                loadInputs(*newBlock, newSprite, blockId, blocksData, 2);
+                loadFields(*newBlock, blockId, blocksData, 2);
 
                 Scratch::blocks.push_back(newBlock);
                 newSprite->hats[opcode].insert(newBlock);
 
-                if (!data.contains("next") || data["next"].is_null()) {
+                simdjson::dom::element nextElem;
+                if (!JsonDom::hasKey(data, "next") || data["next"].get(nextElem) || nextElem.is_null()) {
                     Parser::log("\t\t\t! No next block");
                 } else {
-                    std::string nextBlockKey = data["next"].get<std::string>();
-                    newBlock->nextBlock = loadBlock(newSprite, nextBlockKey, target["blocks"], nullptr, 2);
+                    std::string nextBlockKey = JsonDom::getStringValue(nextElem).value_or("");
+                    newBlock->nextBlock = loadBlock(newSprite, nextBlockKey, blocksData, nullptr, 2);
                 }
                 setSubstack(newBlock);
             }
 
             for (const std::string &id : procedureCallBlocks) {
-                const auto &data = target["blocks"][id];
+                simdjson::dom::element data;
+                if (blocksData[id].get(data)) continue;
 
-                if (!data.contains("inputs") || !data["inputs"].contains("custom_block") ||
-                    !data["inputs"]["custom_block"].is_array() || data["inputs"]["custom_block"].size() < 2) {
+                simdjson::dom::element customBlock;
+                if (!JsonDom::hasKey(data, "inputs") || data["inputs"]["custom_block"].get(customBlock) ||
+                    !customBlock.is_array() || JsonDom::arraySize(customBlock) < 2) {
                     Parser::log("\t\t! procedures_call without custom_block input");
                     continue;
                 }
 
                 std::string prototypeId;
-                if (data["inputs"]["custom_block"][1].is_string()) {
-                    prototypeId = data["inputs"]["custom_block"][1].get<std::string>();
+                simdjson::dom::element prototypeIdElem = JsonDom::arrayAt(customBlock, 1);
+                if (prototypeIdElem.is_string()) {
+                    prototypeId = JsonDom::getStringValue(prototypeIdElem).value_or("");
                 } else {
                     Parser::log("\t\t! procedures_call prototype block ID is not a string");
                     continue;
                 }
 
-                if (!target["blocks"].contains(prototypeId)) {
+                simdjson::dom::element prototype;
+                if (blocksData[prototypeId].get(prototype)) {
                     Parser::log("\t\t! procedures_call prototype block not found");
                     continue;
                 }
 
-                const auto &prototype = target["blocks"][prototypeId];
-                if (!prototype.contains("mutation")) {
+                if (!JsonDom::hasKey(prototype, "mutation")) {
                     Parser::log("\t\t! procedures_call without mutation");
                     continue;
                 }
-                std::string proccode = prototype["mutation"]["proccode"];
+                std::string proccode = JsonDom::getString(prototype["mutation"], "proccode").value_or("");
 
                 if (newSprite->customHatBlock.find(proccode) == newSprite->customHatBlock.end()) {
                     newSprite->customHatBlock[proccode] = new Block();
@@ -372,35 +413,46 @@ void Parser::loadSprites(const nlohmann::json &json) {
                 Block *definitionBlock = newSprite->customHatBlock[proccode];
                 definitionBlock->blockFunction = BlockExecutor::getHandlers()["procedures_prototype"];
 
-                if (prototype["mutation"].contains("argumentnames") &&
-                    prototype["mutation"].contains("argumentids")) {
+                simdjson::dom::element mutation = prototype["mutation"];
+                if (JsonDom::hasKey(mutation, "argumentnames") && JsonDom::hasKey(mutation, "argumentids")) {
+                    std::string rawArgumentIds = JsonDom::getString(mutation, "argumentids").value_or("");
+                    definitionBlock->argumentIDs = JsonDom::parseStringArray(Unzip::nestedParser, rawArgumentIds);
 
-                    std::string rawArgumentIds = prototype["mutation"]["argumentids"];
-                    nlohmann::json parsedArgIds = nlohmann::json::parse(rawArgumentIds);
-                    definitionBlock->argumentIDs = parsedArgIds.get<std::vector<std::string>>();
-
-                    std::string rawArgumentNames = prototype["mutation"]["argumentnames"];
-                    nlohmann::json parsedNames = nlohmann::json::parse(rawArgumentNames);
-                    definitionBlock->argumentNames = parsedNames.get<std::vector<std::string>>();
+                    std::string rawArgumentNames = JsonDom::getString(mutation, "argumentnames").value_or("");
+                    definitionBlock->argumentNames = JsonDom::parseStringArray(Unzip::nestedParser, rawArgumentNames);
                 }
 
-                if (prototype["mutation"].contains("argumentdefaults")) {
-                    std::string rawArgumentDefaults = prototype["mutation"]["argumentdefaults"];
-                    nlohmann::json parsedAD = nlohmann::json::parse(rawArgumentDefaults);
+                if (JsonDom::hasKey(mutation, "argumentdefaults")) {
+                    std::string rawArgumentDefaults = JsonDom::getString(mutation, "argumentdefaults").value_or("");
+                    simdjson::dom::element parsedAD;
                     definitionBlock->argumentDefaults.clear();
-                    for (const auto &item : parsedAD)
-                        definitionBlock->argumentDefaults.push_back(Value::fromJson(item));
+                    if (JsonDom::parseNested(Unzip::nestedParser, rawArgumentDefaults, parsedAD) && parsedAD.is_array()) {
+                        simdjson::dom::array defaultsArray;
+                        if (!parsedAD.get_array().get(defaultsArray)) {
+                            for (simdjson::dom::element item : defaultsArray) {
+                                definitionBlock->argumentDefaults.push_back(Value::fromJson(item));
+                            }
+                        }
+                    }
                 }
-                if (prototype["mutation"].contains("warp")) {
-                    const auto &warp = prototype["mutation"]["warp"];
-                    definitionBlock->MyBlockWithoutScreenRefresh = (warp.is_string() && warp.get<std::string>() == "true") || (warp.is_boolean() && warp.get<bool>());
+                if (JsonDom::hasKey(mutation, "warp")) {
+                    simdjson::dom::element warp;
+                    mutation["warp"].get(warp);
+                    bool warpValue = false;
+                    if (warp.is_string()) {
+                        warpValue = JsonDom::getStringValue(warp) == "true";
+                    } else if (warp.is_bool()) {
+                        warp.get_bool().get(warpValue);
+                    }
+                    definitionBlock->MyBlockWithoutScreenRefresh = warpValue;
                 } else {
                     definitionBlock->MyBlockWithoutScreenRefresh = false;
                 }
 
-                if (data.contains("next") && !data["next"].is_null()) {
-                    std::string nextKey = data["next"].get<std::string>();
-                    definitionBlock->nextBlock = loadBlock(newSprite, nextKey, target["blocks"], nullptr, 2);
+                simdjson::dom::element nextElem;
+                if (JsonDom::hasKey(data, "next") && !data["next"].get(nextElem) && !nextElem.is_null()) {
+                    std::string nextKey = JsonDom::getStringValue(nextElem).value_or("");
+                    definitionBlock->nextBlock = loadBlock(newSprite, nextKey, blocksData, nullptr, 2);
                     Parser::log("\t\t! Procedure body loaded from: " + nextKey);
                 }
                 setSubstack(definitionBlock);
@@ -419,65 +471,81 @@ void Parser::loadSprites(const nlohmann::json &json) {
 
     Scratch::sortSprites();
 
-    if (json.contains("monitors") && json["monitors"].is_array()) {
+    if (JsonDom::hasKey(json, "monitors") && json["monitors"].is_array()) {
         Parser::log("Loading monitors:");
-        for (const auto &monitor : json["monitors"]) { // "monitor" is any variable shown on screen
-            Monitor newMonitor;
+        simdjson::dom::array monitorsArray;
+        if (!json["monitors"].get_array().get(monitorsArray)) {
+            for (simdjson::dom::element monitor : monitorsArray) {
+                Monitor newMonitor;
 
-            if (monitor.contains("id") && !monitor["id"].is_null())
-                newMonitor.id = monitor.at("id").get<std::string>();
+                simdjson::dom::element idElem;
+                if (JsonDom::hasKey(monitor, "id") && !monitor["id"].get(idElem) && !idElem.is_null())
+                    newMonitor.id = JsonDom::getStringValue(idElem).value_or("");
 
-            if (monitor.contains("mode") && !monitor["mode"].is_null())
-                newMonitor.mode = monitor.at("mode").get<std::string>();
+                simdjson::dom::element modeElem;
+                if (JsonDom::hasKey(monitor, "mode") && !monitor["mode"].get(modeElem) && !modeElem.is_null())
+                    newMonitor.mode = JsonDom::getStringValue(modeElem).value_or("");
 
-            if (monitor.contains("opcode") && !monitor["opcode"].is_null())
-                newMonitor.opcode = monitor.at("opcode").get<std::string>();
+                simdjson::dom::element opcodeElem;
+                if (JsonDom::hasKey(monitor, "opcode") && !monitor["opcode"].get(opcodeElem) && !opcodeElem.is_null())
+                    newMonitor.opcode = JsonDom::getStringValue(opcodeElem).value_or("");
 
-            if (monitor.contains("params") && monitor["params"].is_object()) {
-                for (const auto &param : monitor["params"].items()) {
-                    std::string key = param.key();
-                    std::string value = param.value().dump();
-                    newMonitor.parameters[key] = value;
+                if (JsonDom::hasKey(monitor, "params") && monitor["params"].is_object()) {
+                    simdjson::dom::object paramsObj;
+                    if (!monitor["params"].get_object().get(paramsObj)) {
+                        for (auto [key, value] : paramsObj) {
+                            newMonitor.parameters[std::string(key)] = JsonDom::toJsonString(value);
+                        }
+                    }
                 }
+
+                if (JsonDom::hasKey(monitor, "spriteName") && monitor["spriteName"].is_string())
+                    newMonitor.spriteName = JsonDom::getString(monitor, "spriteName").value_or("");
+                else
+                    newMonitor.spriteName = "";
+
+                simdjson::dom::element valueElem;
+                if (JsonDom::hasKey(monitor, "value") && !monitor["value"].get(valueElem) && !valueElem.is_null())
+                    newMonitor.value = Value(Math::removeQuotations(JsonDom::toJsonString(valueElem)));
+
+                simdjson::dom::element xElem;
+                if (JsonDom::hasKey(monitor, "x") && !monitor["x"].get(xElem) && !xElem.is_null())
+                    newMonitor.x = JsonDom::getIntOr(monitor, "x", 0);
+
+                simdjson::dom::element yElem;
+                if (JsonDom::hasKey(monitor, "y") && !monitor["y"].get(yElem) && !yElem.is_null())
+                    newMonitor.y = JsonDom::getIntOr(monitor, "y", 0);
+
+                simdjson::dom::element widthElem;
+                if (JsonDom::hasKey(monitor, "width") && !monitor["width"].get(widthElem) && !widthElem.is_null() && JsonDom::getIntOr(monitor, "width", 0) != 0)
+                    newMonitor.width = JsonDom::getIntOr(monitor, "width", 110);
+                else
+                    newMonitor.width = 110;
+
+                simdjson::dom::element heightElem;
+                if (JsonDom::hasKey(monitor, "height") && !monitor["height"].get(heightElem) && !heightElem.is_null() && JsonDom::getIntOr(monitor, "height", 0) != 0)
+                    newMonitor.height = JsonDom::getIntOr(monitor, "height", 200);
+                else
+                    newMonitor.height = 200;
+
+                simdjson::dom::element visibleElem;
+                if (JsonDom::hasKey(monitor, "visible") && !monitor["visible"].get(visibleElem) && !visibleElem.is_null())
+                    newMonitor.visible = JsonDom::getBool(monitor, "visible").value_or(false);
+
+                simdjson::dom::element isDiscreteElem;
+                if (JsonDom::hasKey(monitor, "isDiscrete") && !monitor["isDiscrete"].get(isDiscreteElem) && !isDiscreteElem.is_null())
+                    newMonitor.isDiscrete = JsonDom::getBool(monitor, "isDiscrete").value_or(false);
+
+                simdjson::dom::element sliderMinElem;
+                if (JsonDom::hasKey(monitor, "sliderMin") && !monitor["sliderMin"].get(sliderMinElem) && !sliderMinElem.is_null())
+                    newMonitor.sliderMin = JsonDom::getDoubleOr(monitor, "sliderMin", 0);
+
+                simdjson::dom::element sliderMaxElem;
+                if (JsonDom::hasKey(monitor, "sliderMax") && !monitor["sliderMax"].get(sliderMaxElem) && !sliderMaxElem.is_null())
+                    newMonitor.sliderMax = JsonDom::getDoubleOr(monitor, "sliderMax", 0);
+
+                Render::monitors.emplace(newMonitor.id, newMonitor);
             }
-
-            if (monitor.contains("spriteName") && monitor["spriteName"].is_string())
-                newMonitor.spriteName = monitor.at("spriteName").get<std::string>();
-            else
-                newMonitor.spriteName = "";
-
-            if (monitor.contains("value") && !monitor["value"].is_null())
-                newMonitor.value = Value(Math::removeQuotations(monitor.at("value").dump()));
-
-            if (monitor.contains("x") && !monitor["x"].is_null())
-                newMonitor.x = monitor.at("x").get<int>();
-
-            if (monitor.contains("y") && !monitor["y"].is_null())
-                newMonitor.y = monitor.at("y").get<int>();
-
-            if (monitor.contains("width") && !(monitor["width"].is_null() || monitor.at("width").get<int>() == 0))
-                newMonitor.width = monitor.at("width").get<int>();
-            else
-                newMonitor.width = 110;
-
-            if (monitor.contains("height") && !(monitor["height"].is_null() || monitor.at("height").get<int>() == 0))
-                newMonitor.height = monitor.at("height").get<int>();
-            else
-                newMonitor.height = 200;
-
-            if (monitor.contains("visible") && !monitor["visible"].is_null())
-                newMonitor.visible = monitor.at("visible").get<bool>();
-
-            if (monitor.contains("isDiscrete") && !monitor["isDiscrete"].is_null())
-                newMonitor.isDiscrete = monitor.at("isDiscrete").get<bool>();
-
-            if (monitor.contains("sliderMin") && !monitor["sliderMin"].is_null())
-                newMonitor.sliderMin = monitor.at("sliderMin").get<double>();
-
-            if (monitor.contains("sliderMax") && !monitor["sliderMax"].is_null())
-                newMonitor.sliderMax = monitor.at("sliderMax").get<double>();
-
-            Render::monitors.emplace(newMonitor.id, newMonitor);
         }
 
         Unzip::loadingState = "Finishing up!";
@@ -487,16 +555,20 @@ void Parser::loadSprites(const nlohmann::json &json) {
     }
 }
 
-void Parser::loadAdvancedProjectSettings(const nlohmann::json &json) {
-    if (!json.contains("comments")) return;
+void Parser::loadAdvancedProjectSettings(simdjson::dom::element json) {
+    if (!JsonDom::hasKey(json, "comments")) return;
 
-    nlohmann::json config;
+    simdjson::dom::element config;
+    bool configFound = false;
 
-    for (const auto &[id, data] : json["comments"].items()) {
-        std::size_t settingsFind = data["text"].get<std::string>().find("_twconfig_");
+    simdjson::dom::object commentsObj;
+    if (json["comments"].get_object().get(commentsObj)) return;
+
+    for (auto [id, data] : commentsObj) {
+        std::string text = JsonDom::getString(data, "text").value_or("");
+        std::size_t settingsFind = text.find("_twconfig_");
         if (settingsFind == std::string::npos) continue;
 
-        std::string text = data["text"].get<std::string>();
         std::size_t json_start = text.find('{');
         if (json_start == std::string::npos) continue;
 
@@ -534,14 +606,16 @@ void Parser::loadAdvancedProjectSettings(const nlohmann::json &json) {
             cleaned_json.replace(inf_pos, 8, "1e9");
         }
 
-        config = nlohmann::json::parse(cleaned_json, nullptr, false);
-        if (!config.is_discarded()) break;
+        if (JsonDom::parseNested(Unzip::nestedParser, cleaned_json, config)) {
+            configFound = true;
+            break;
+        }
     }
     // set advanced project settings properties
     bool infClones = false;
-    if (!config.is_null()) {
+    if (configFound && !config.is_null()) {
 
-        Scratch::FPS = config.value("framerate", 30);
+        Scratch::FPS = JsonDom::getIntOr(config, "framerate", 30);
         if (Scratch::FPS == 0) { // 0 FPS enables V-Sync
 #if defined(RENDERER_SDL2)
             Scratch::FPS = 255; // SDL2's vsync will figure it out
@@ -550,16 +624,17 @@ void Parser::loadAdvancedProjectSettings(const nlohmann::json &json) {
 #endif
         }
 
-        Scratch::turbo = config.value("turbo", false);
-        Scratch::hqpen = config.value("hq", false);
-        Scratch::projectWidth = config.value("width", 480);
-        Scratch::projectHeight = config.value("height", 360);
+        Scratch::turbo = JsonDom::getBoolOr(config, "turbo", false);
+        Scratch::hqpen = JsonDom::getBoolOr(config, "hq", false);
+        Scratch::projectWidth = JsonDom::getIntOr(config, "width", 480);
+        Scratch::projectHeight = JsonDom::getIntOr(config, "height", 360);
 
-        auto &runtimeOptions = config["runtimeOptions"];
-        if (runtimeOptions.is_object()) {
-            Scratch::fencing = runtimeOptions.value("fencing", true);
-            Scratch::miscellaneousLimits = runtimeOptions.value("miscLimits", true);
-            infClones = runtimeOptions.contains("maxClones") && !runtimeOptions["maxClones"].is_null();
+        simdjson::dom::element runtimeOptions;
+        if (!config["runtimeOptions"].get(runtimeOptions) && runtimeOptions.is_object()) {
+            Scratch::fencing = JsonDom::getBoolOr(runtimeOptions, "fencing", true);
+            Scratch::miscellaneousLimits = JsonDom::getBoolOr(runtimeOptions, "miscLimits", true);
+            simdjson::dom::element maxClones;
+            infClones = !runtimeOptions["maxClones"].get(maxClones) && !maxClones.is_null();
         }
     }
 
@@ -570,14 +645,14 @@ void Parser::loadAdvancedProjectSettings(const nlohmann::json &json) {
         Render::renderMode = Render::BOTTOM_SCREEN_ONLY;
     else {
         auto bottomScreen = Unzip::getSetting("bottomScreen");
-        if (!bottomScreen.is_null() && bottomScreen.get<bool>())
+        if (!bottomScreen.is_null() && bottomScreen.get_bool())
             Render::renderMode = Render::BOTTOM_SCREEN_ONLY;
         else
             Render::renderMode = Render::TOP_SCREEN_ONLY;
     }
 #elif defined(RENDERER_GL2D)
     auto bottomScreen = Unzip::getSetting("bottomScreen");
-    if (!bottomScreen.is_null() && bottomScreen.get<bool>())
+    if (!bottomScreen.is_null() && bottomScreen.get_bool())
         Render::renderMode = Render::BOTTOM_SCREEN_ONLY;
     else
         Render::renderMode = Render::TOP_SCREEN_ONLY;
@@ -587,7 +662,7 @@ void Parser::loadAdvancedProjectSettings(const nlohmann::json &json) {
 
     auto accuratePen = Unzip::getSetting("accuratePen");
     if (!accuratePen.is_null())
-        Scratch::accuratePen = accuratePen.get<bool>();
+        Scratch::accuratePen = accuratePen.get_bool();
 #if defined(RENDERER_SDL2) || defined(RENDERER_SDL3)
     else Scratch::accuratePen = true;
 #else
@@ -601,66 +676,74 @@ void Parser::loadAdvancedProjectSettings(const nlohmann::json &json) {
 #else
         Scratch::accurateCollision = true;
 #endif
-    } else Scratch::accurateCollision = accurateCollision.get<bool>();
+    } else Scratch::accurateCollision = accurateCollision.get_bool();
 
     auto debugVars = Unzip::getSetting("debugVars");
-    if (!debugVars.is_null() && debugVars.get<bool>())
+    if (!debugVars.is_null() && debugVars.get_bool())
         Scratch::debugVars = true;
     else Scratch::debugVars = false;
 
     auto withoutScreenRefreshLimit = Unzip::getSetting("warpTimer");
-    if (!withoutScreenRefreshLimit.is_null() && withoutScreenRefreshLimit.is_boolean())
-        Scratch::warpTimer = withoutScreenRefreshLimit.get<bool>();
+    if (!withoutScreenRefreshLimit.is_null() && withoutScreenRefreshLimit.is_bool())
+        Scratch::warpTimer = withoutScreenRefreshLimit.get_bool();
     else Scratch::warpTimer = true;
 
     if (infClones) Scratch::maxClones = std::numeric_limits<int>::max();
     else Scratch::maxClones = 300;
 }
 
-void Parser::loadInputs(Block &block, Sprite *newSprite, std::string blockKey, const nlohmann::json &blockDatas, int indent) {
-    auto &blockData = blockDatas[blockKey];
-    if (!blockData.contains("inputs") || blockData["inputs"].empty()) return;
+void Parser::loadInputs(Block &block, Sprite *newSprite, std::string blockKey, simdjson::dom::element blockDatas, int indent) {
+    simdjson::dom::element blockData;
+    if (blockDatas[blockKey].get(blockData)) return;
+    if (!JsonDom::hasKey(blockData, "inputs") || JsonDom::isEmptyObject(blockData["inputs"])) return;
 
     std::string indentStr(indent, '\t');
 
-    for (const auto &[inputName, data] : blockData["inputs"].items()) {
-        int type = data[0];
-        auto &inputValue = data[1];
+    simdjson::dom::object inputsObj;
+    if (blockData["inputs"].get_object().get(inputsObj)) return;
+
+    for (auto [inputName, data] : inputsObj) {
+        if (JsonDom::arraySize(data) < 2) continue;
+
+        int type = JsonDom::getIntValue(JsonDom::arrayAt(data, 0));
+        simdjson::dom::element inputValue = JsonDom::arrayAt(data, 1);
 
         if (type == 1) {
             if (inputValue.is_array() || block.opcode == "procedures_definition") {
-                block.inputs[inputName] = ParsedInput(Value::fromJson(inputValue));
-                if (inputValue.is_array() && inputValue.size() > 1) {
+                block.inputs[std::string(inputName)] = ParsedInput(Value::fromJson(inputValue));
+                if (inputValue.is_array() && JsonDom::arraySize(inputValue) > 1) {
+                    simdjson::dom::element valueElem = JsonDom::arrayAt(inputValue, 1);
                     std::string valueStr;
-                    if (inputValue[1].is_string()) {
-                        valueStr = inputValue[1].get<std::string>();
-                    } else if (inputValue[1].is_number()) {
-                        valueStr = std::to_string(inputValue[1].get<double>());
+                    if (valueElem.is_string()) {
+                        valueStr = JsonDom::getStringValue(valueElem).value_or("");
+                    } else if (valueElem.is_number()) {
+                        valueStr = std::to_string(JsonDom::getNumberValue(valueElem).value_or(0));
                     } else {
-                        valueStr = inputValue[1].dump();
+                        valueStr = JsonDom::toJsonString(valueElem);
                     }
-                    Parser::log(indentStr + "\t" + inputName + ": " + valueStr);
+                    Parser::log(indentStr + "\t" + std::string(inputName) + ": " + valueStr);
                 }
             } else {
                 if (!inputValue.is_null()) {
-                    Parser::log(indentStr + "\t" + inputName + ":");
-                    block.inputs[inputName] = ParsedInput(loadBlock(newSprite, inputValue.get<std::string>(), blockDatas, &block, indent + 2));
+                    Parser::log(indentStr + "\t" + std::string(inputName) + ":");
+                    block.inputs[std::string(inputName)] = ParsedInput(loadBlock(newSprite, JsonDom::getStringValue(inputValue).value_or(""), blockDatas, &block, indent + 2));
                 }
             }
         } else if (type == 2 || type == 3) {
             if (inputValue.is_array()) {
-                block.inputs[inputName] = ParsedInput(inputValue[2].get<std::string>());
-                if (inputValue[0].get<int>() == 13) block.inputs[inputName].list = true;
-                Parser::log(indentStr + "\t" + inputName + ": var[" + inputValue[1].get<std::string>() + "]");
+                if (JsonDom::arraySize(inputValue) < 3) continue;
+                block.inputs[std::string(inputName)] = ParsedInput(JsonDom::getStringValue(JsonDom::arrayAt(inputValue, 2)).value_or(""));
+                if (JsonDom::getIntValue(JsonDom::arrayAt(inputValue, 0)) == 13) block.inputs[std::string(inputName)].list = true;
+                Parser::log(indentStr + "\t" + std::string(inputName) + ": var[" + JsonDom::getStringValue(JsonDom::arrayAt(inputValue, 1)).value_or("") + "]");
             } else {
                 if (!inputValue.is_null()) {
-                    Parser::log(indentStr + "\t" + inputName + ":");
-                    Block *newBlock = loadBlock(newSprite, inputValue.get<std::string>(), blockDatas, &block, indent + 2);
+                    Parser::log(indentStr + "\t" + std::string(inputName) + ":");
+                    Block *newBlock = loadBlock(newSprite, JsonDom::getStringValue(inputValue).value_or(""), blockDatas, &block, indent + 2);
 
                     // Constant folding :)
 #define CHECK_NUM_CONSTANT_FOLDING(OPCODE, OPERATOR)                                                                                                                                 \
     if (newBlock->opcode == #OPCODE && newBlock->inputs["NUM1"].inputType == ParsedInput::InputType::VALUE && newBlock->inputs["NUM2"].inputType == ParsedInput::InputType::VALUE) { \
-        block.inputs[inputName] = ParsedInput(newBlock->inputs["NUM1"].value OPERATOR newBlock->inputs["NUM2"].value);                                                               \
+        block.inputs[std::string(inputName)] = ParsedInput(newBlock->inputs["NUM1"].value OPERATOR newBlock->inputs["NUM2"].value);                                                               \
         if (Scratch::blocks.back() == newBlock) Scratch::blocks.pop_back();                                                                                                          \
         else Scratch::blocks.erase(std::remove(Scratch::blocks.begin(), Scratch::blocks.end(), newBlock), Scratch::blocks.end());                                                    \
         delete newBlock;                                                                                                                                                             \
@@ -671,36 +754,45 @@ void Parser::loadInputs(Block &block, Sprite *newSprite, std::string blockKey, c
                     CHECK_NUM_CONSTANT_FOLDING(operator_multiply, *)
                     CHECK_NUM_CONSTANT_FOLDING(operator_divide, /)
                     CHECK_NUM_CONSTANT_FOLDING(operator_subtract, -)
-                    block.inputs[inputName] = ParsedInput(newBlock);
+                    block.inputs[std::string(inputName)] = ParsedInput(newBlock);
                 }
             }
         }
     }
 }
 
-void Parser::loadFields(Block &block, const std::string &blockKey, const nlohmann::json &blockDatas, int indent) {
-    auto &blockData = blockDatas[blockKey];
-    if (!blockData.contains("fields") || blockData["fields"].empty()) return;
+void Parser::loadFields(Block &block, const std::string &blockKey, simdjson::dom::element blockDatas, int indent) {
+    simdjson::dom::element blockData;
+    if (blockDatas[blockKey].get(blockData)) return;
+    if (!JsonDom::hasKey(blockData, "fields") || JsonDom::isEmptyObject(blockData["fields"])) return;
 
     std::string indentStr(indent, '\t');
 
-    for (const auto &[name, field] : blockData["fields"].items()) {
-        ParsedField parsedField;
-        if (field.is_array() && !field.empty()) {
-            parsedField.value = field[0].get<std::string>();
+    simdjson::dom::object fieldsObj;
+    if (blockData["fields"].get_object().get(fieldsObj)) return;
 
-            if (field.size() > 1 && !field[1].is_null()) {
-                parsedField.id = field[1].get<std::string>();
-                Parser::log(indentStr + "\t" + name + ": " + parsedField.value + " [" + parsedField.id + "]");
+    for (auto [name, field] : fieldsObj) {
+        ParsedField parsedField;
+        if (field.is_array() && JsonDom::arraySize(field) > 0) {
+            parsedField.value = JsonDom::getStringValue(JsonDom::arrayAt(field, 0)).value_or("");
+
+            if (JsonDom::arraySize(field) > 1) {
+                simdjson::dom::element fieldId = JsonDom::arrayAt(field, 1);
+                if (!fieldId.is_null()) {
+                    parsedField.id = JsonDom::getStringValue(fieldId).value_or("");
+                    Parser::log(indentStr + "\t" + std::string(name) + ": " + parsedField.value + " [" + parsedField.id + "]");
+                } else {
+                    Parser::log(indentStr + "\t" + std::string(name) + ": " + parsedField.value);
+                }
             } else {
-                Parser::log(indentStr + "\t" + name + ": " + parsedField.value);
+                Parser::log(indentStr + "\t" + std::string(name) + ": " + parsedField.value);
             }
         }
-        block.fields[name] = parsedField;
+        block.fields[std::string(name)] = parsedField;
     }
 }
 
-bool Parser::loadExtensions(const nlohmann::json &json) {
+bool Parser::loadExtensions(simdjson::dom::element json) {
     bool hasExts = false;
 #ifdef ENABLE_NATIVE_EXTENSIONS
 #ifdef __APPLE__
@@ -708,8 +800,11 @@ bool Parser::loadExtensions(const nlohmann::json &json) {
 #else
     constexpr const char *libraryExtension = ".so";
 #endif
-    if (!json.contains("extensions")) return hasExts;
-    for (const std::string &extension : json["extensions"]) {
+    if (!JsonDom::hasKey(json, "extensions")) return hasExts;
+    simdjson::dom::array extensionsArray;
+    if (json["extensions"].get_array().get(extensionsArray)) return hasExts;
+    for (simdjson::dom::element extensionElem : extensionsArray) {
+        std::string extension = JsonDom::getStringValue(extensionElem).value_or("");
         const std::string &path = OS::getScratchFolderLocation() + "extensions/" + extension + libraryExtension;
         if (FileSystem::fileExists(path)) {
             void *extensionHandle = dlopen(path.c_str(), RTLD_NOW | RTLD_GLOBAL);
@@ -725,16 +820,18 @@ bool Parser::loadExtensions(const nlohmann::json &json) {
     return hasExts;
 }
 
-Block *Parser::loadBlock(Sprite *newSprite, const std::string id, const nlohmann::json &blockDatas, Block *parentBlock, int indent) {
-    if (!blockDatas.contains(id)) return parentBlock;
-    if (!blockDatas[id].contains("opcode")) return parentBlock;
+Block *Parser::loadBlock(Sprite *newSprite, const std::string id, simdjson::dom::element blockDatas, Block *parentBlock, int indent) {
+    simdjson::dom::element firstBlockData;
+    if (blockDatas[id].get(firstBlockData)) return parentBlock;
+    if (!JsonDom::hasKey(firstBlockData, "opcode")) return parentBlock;
 
     Block *firstBlock = nullptr;
     Block *currentBlock = nullptr;
     std::string currentId = id;
 
     while (true) {
-        if (!blockDatas.contains(currentId) || !blockDatas[currentId].contains("opcode")) {
+        simdjson::dom::element currentBlockData;
+        if (blockDatas[currentId].get(currentBlockData) || !JsonDom::hasKey(currentBlockData, "opcode")) {
             if (currentBlock) {
                 currentBlock->nextBlock = parentBlock;
             }
@@ -744,8 +841,7 @@ Block *Parser::loadBlock(Sprite *newSprite, const std::string id, const nlohmann
         Block *newBlock = new Block();
         if (!firstBlock) firstBlock = newBlock;
 
-        const nlohmann::json &blockData = blockDatas[currentId];
-        newBlock->opcode = blockData["opcode"].get<std::string>();
+        newBlock->opcode = JsonDom::getString(currentBlockData, "opcode").value_or("");
 
         std::string indentStr(indent, '\t');
         Parser::log(indentStr + newBlock->opcode);
@@ -765,22 +861,23 @@ Block *Parser::loadBlock(Sprite *newSprite, const std::string id, const nlohmann
         }
 
         if (newBlock->opcode == "procedures_call") {
-            if (blockData.contains("mutation") && blockData.is_object() &&
-                blockData["mutation"].contains("tagName") &&
-                blockData["mutation"]["tagName"].get<std::string>() == "mutation") {
+            simdjson::dom::element mutation;
+            if (JsonDom::hasKey(currentBlockData, "mutation") && currentBlockData.is_object() &&
+                !currentBlockData["mutation"].get(mutation) &&
+                JsonDom::hasKey(mutation, "tagName") &&
+                JsonDom::getString(mutation, "tagName") == "mutation") {
 
-                std::string rawArgumentIds = blockData["mutation"]["argumentids"];
-                nlohmann::json parsedArgIds = nlohmann::json::parse(rawArgumentIds);
-                newBlock->argumentIDs = parsedArgIds.get<std::vector<std::string>>();
+                std::string rawArgumentIds = JsonDom::getString(mutation, "argumentids").value_or("");
+                newBlock->argumentIDs = JsonDom::parseStringArray(Unzip::nestedParser, rawArgumentIds);
 
-                if (blockData["mutation"].contains("proccode")) {
-                    Parser::log(indentStr + "\tproccode: " + blockData["mutation"]["proccode"].get<std::string>());
+                if (JsonDom::hasKey(mutation, "proccode")) {
+                    Parser::log(indentStr + "\tproccode: " + JsonDom::getString(mutation, "proccode").value_or(""));
                 }
 
                 if (!newBlock->argumentIDs.empty()) {
                     Parser::log(indentStr + "\targuments: " + std::to_string(newBlock->argumentIDs.size()));
                 }
-                std::string procode = blockData["mutation"]["proccode"];
+                std::string procode = JsonDom::getString(mutation, "proccode").value_or("");
 
                 if (procode == "\u200B\u200Blog\u200B\u200B %s") newBlock->blockFunction = BlockExecutor::getHandlers()["logs_log"];
                 else if (procode == "\u200B\u200Bwarn\u200B\u200B %s") newBlock->blockFunction = BlockExecutor::getHandlers()["logs_warn"];
@@ -817,12 +914,15 @@ Block *Parser::loadBlock(Sprite *newSprite, const std::string id, const nlohmann
 
         std::string nextId;
         bool hasNext = false;
-        if (blockData.contains("next") && !blockData["next"].is_null()) {
-            nextId = blockData["next"].get<std::string>();
+        simdjson::dom::element nextElem;
+        if (JsonDom::hasKey(currentBlockData, "next") && !currentBlockData["next"].get(nextElem) && !nextElem.is_null()) {
+            nextId = JsonDom::getStringValue(nextElem).value_or("");
             hasNext = true;
         }
 
-        if (!blockDatas[currentId].contains("shadow") || !blockDatas[currentId]["shadow"].get<bool>()) {
+        simdjson::dom::element shadowElem;
+        if (!JsonDom::hasKey(blockDatas[currentId], "shadow") || blockDatas[currentId]["shadow"].get(shadowElem) ||
+            !JsonDom::getBoolOr(blockDatas[currentId], "shadow", false)) {
             newBlock->shadow = true;
         }
 

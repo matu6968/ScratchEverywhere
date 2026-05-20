@@ -3,8 +3,8 @@
 #include "os.hpp"
 #include "text.hpp"
 #include <input.hpp>
+#include <json_document.hpp>
 #include <math.hpp>
-#include <nlohmann/json.hpp>
 #include <render.hpp>
 #include <unzip.hpp>
 #ifdef __WIIU__
@@ -50,7 +50,7 @@ class MainMenu : public Menu {
 
     int selectedTextIndex = 0;
 
-    nlohmann::json settings;
+    JsonDocument settings;
 
     void init() override;
     void render() override;

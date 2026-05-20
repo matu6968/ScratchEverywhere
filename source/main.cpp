@@ -2,6 +2,9 @@
 #include "image.hpp"
 #include "translation.hpp"
 #include <log.hpp>
+#ifdef ENABLE_CLOUDVARS
+#include <parser.hpp>
+#endif
 #ifdef ENABLE_MENU
 #include <menus/mainMenu.hpp>
 #endif
@@ -27,6 +30,10 @@
 #endif
 
 static void exitApp() {
+    Log::disableFileLogging();
+#ifdef ENABLE_CLOUDVARS
+    Parser::shutdownCloud();
+#endif
     Render::deInit();
     OS::deinit();
 }

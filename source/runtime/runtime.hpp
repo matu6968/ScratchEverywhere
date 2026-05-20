@@ -2,7 +2,6 @@
 #include "blockExecutor.hpp"
 #include "sprite.hpp"
 #include <image.hpp>
-#include <nlohmann/json.hpp>
 #include <string>
 #include <time.hpp>
 #include <unordered_map>

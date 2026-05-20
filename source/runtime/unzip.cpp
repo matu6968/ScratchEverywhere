@@ -44,6 +44,9 @@ std::string Unzip::filePath = "";
 mz_zip_archive Unzip::zipArchive;
 std::vector<char> Unzip::zipBuffer;
 bool Unzip::UnpackedInSD = false;
+simdjson::dom::parser Unzip::projectParser;
+simdjson::dom::parser Unzip::nestedParser;
+bool Unzip::projectJsonValid = false;
 
 int Unzip::openFile(std::istream *&file) {
     Log::log("Unzipping Scratch project...");
@@ -205,9 +208,9 @@ void Unzip::openScratchProject(void *arg) {
         return;
     }
     loadingState = TranslationManager::getTranslation("ui.loading.unzipping");
-    nlohmann::json project_json = unzipProject(file);
+    simdjson::dom::element project_json = unzipProject(file);
     delete file;
-    if (project_json.empty()) {
+    if (!projectJsonValid) {
         Log::logError("Project.json is empty.");
         Unzip::projectOpened = -2;
         Unzip::threadFinished = true;
@@ -219,6 +222,9 @@ void Unzip::openScratchProject(void *arg) {
 
     loadingState = TranslationManager::getTranslation("ui.loading.sprites");
     Parser::loadSprites(project_json);
+
+    projectParser = simdjson::dom::parser();
+    projectJsonValid = false;
 
     Unzip::projectOpened = 1;
     Unzip::threadFinished = true;
@@ -351,8 +357,17 @@ static size_t miniz_istream_read_func(void *pOpaque, mz_uint64 file_ofs, void *p
     return static_cast<size_t>(stream->gcount());
 }
 
-nlohmann::json Unzip::unzipProject(std::istream *file) {
-    nlohmann::json project_json;
+static simdjson::dom::element parseProjectJson(std::string_view jsonContent, bool &valid) {
+    simdjson::padded_string padded(jsonContent);
+    simdjson::dom::element root;
+    valid = !Unzip::projectParser.parse(padded).get(root);
+    return root;
+}
+
+simdjson::dom::element Unzip::unzipProject(std::istream *file) {
+    projectJsonValid = false;
+    projectParser = simdjson::dom::parser();
+    simdjson::dom::element root;
 
     if (Scratch::projectType != ProjectType::UNZIPPED) {
         auto setting = Unzip::getSetting("sb3InRam");
@@ -364,7 +379,7 @@ nlohmann::json Unzip::unzipProject(std::istream *file) {
             keepInRam = true;
 #endif
         } else {
-            keepInRam = setting.get<bool>();
+            keepInRam = setting.get_bool();
         }
 
         if (keepInRam) {
@@ -375,27 +390,28 @@ nlohmann::json Unzip::unzipProject(std::istream *file) {
             file->seekg(0, std::ios::beg);
             zipBuffer.resize(size);
             if (!file->read(zipBuffer.data(), size)) {
-                return project_json;
+                return root;
             }
 
             // open ZIP file
             memset(&zipArchive, 0, sizeof(zipArchive));
             if (!mz_zip_reader_init_mem(&zipArchive, zipBuffer.data(), zipBuffer.size(), 0)) {
-                return project_json;
+                return root;
             }
 
             // extract project.json
             int file_index = mz_zip_reader_locate_file(&zipArchive, "project.json", NULL, 0);
             if (file_index < 0) {
-                return project_json;
+                return root;
             }
 
             size_t json_size;
             const char *json_data = static_cast<const char *>(mz_zip_reader_extract_to_heap(&zipArchive, file_index, &json_size, 0));
 
-            // Parse JSON file
-            project_json = nlohmann::json::parse(std::string(json_data, json_size));
-            mz_free((void *)json_data);
+            if (json_data) {
+                root = parseProjectJson(std::string_view(json_data, json_size), projectJsonValid);
+                mz_free((void *)json_data);
+            }
         } else {
             Scratch::sb3InRam = false;
             memset(&zipArchive, 0, sizeof(zipArchive));
@@ -409,21 +425,21 @@ nlohmann::json Unzip::unzipProject(std::istream *file) {
 
             if (!mz_zip_reader_init(&zipArchive, file_size, 0)) {
                 Log::logError("Failed to initialize SB3 zip reader from stream.");
-                return project_json;
+                return root;
             }
 
             int file_index = mz_zip_reader_locate_file(&zipArchive, "project.json", NULL, 0);
             if (file_index < 0) {
                 Log::logError("Failed to extract project.json");
                 mz_zip_reader_end(&zipArchive);
-                return project_json;
+                return root;
             }
 
             size_t json_size;
             const char *json_data = static_cast<const char *>(mz_zip_reader_extract_to_heap(&zipArchive, file_index, &json_size, 0));
 
             if (json_data) {
-                project_json = nlohmann::json::parse(std::string(json_data, json_size));
+                root = parseProjectJson(std::string_view(json_data, json_size), projectJsonValid);
                 mz_free((void *)json_data);
             }
 
@@ -448,9 +464,9 @@ nlohmann::json Unzip::unzipProject(std::istream *file) {
         json_content.assign(std::istreambuf_iterator<char>(*file),
                             std::istreambuf_iterator<char>());
 
-        project_json = nlohmann::json::parse(json_content);
+        root = parseProjectJson(json_content, projectJsonValid);
     }
-    return project_json;
+    return root;
 }
 
 bool Unzip::extractProject(const std::string &zipPath, const std::string &destFolder) {
@@ -516,7 +532,7 @@ bool Unzip::deleteProjectFolder(const std::string &directory) {
     return true;
 }
 
-nlohmann::json Unzip::getSetting(const std::string &settingName) {
+JsonValue Unzip::getSetting(const std::string &settingName) {
     std::string folderPath = filePath + ".json";
     std::string content;
 
@@ -526,7 +542,7 @@ nlohmann::json Unzip::getSetting(const std::string &settingName) {
 
         if (!fs.exists(folderPath)) {
             Log::logWarning("Project settings file not found: romfs:/" + folderPath);
-            return nlohmann::json();
+            return JsonValue();
         }
 
         const auto &file = fs.open(folderPath);
@@ -535,7 +551,7 @@ nlohmann::json Unzip::getSetting(const std::string &settingName) {
         std::ifstream file(OS::getRomFSLocation() + "project.sb3.json");
         if (!file.is_open()) {
             Log::logWarning("Project settings file not found in RomFS.");
-            return nlohmann::json();
+            return JsonValue();
         }
         content.assign((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
         file.close();
@@ -544,22 +560,22 @@ nlohmann::json Unzip::getSetting(const std::string &settingName) {
         std::ifstream file(folderPath);
         if (!file.is_open()) {
             Log::logWarning("Project settings file not found: " + folderPath);
-            return nlohmann::json();
+            return JsonValue();
         }
         content.assign((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
         file.close();
     }
 
-    nlohmann::json json = nlohmann::json::parse(content, nullptr, false);
-
-    if (json.is_discarded()) {
+    bool ok = false;
+    JsonDocument json = JsonDocument::parseContent(content, ok);
+    if (!ok) {
         Log::logError("Failed to parse JSON file: Syntax error.");
-        return nlohmann::json();
+        return JsonValue();
     }
 
     if (json.contains("settings") && json["settings"].contains(settingName)) {
         return json["settings"][settingName];
     }
 
-    return nlohmann::json();
+    return JsonValue();
 }

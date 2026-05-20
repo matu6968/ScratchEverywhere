@@ -1,11 +1,13 @@
 #include "translation.hpp"
+#include "json_document.hpp"
 #include "os.hpp"
 #include "settings.hpp"
+#include <algorithm>
 #include <fstream>
 #include <map>
-#include <nlohmann/json.hpp>
 #include <random>
 #include <sstream>
+#include <unordered_map>
 
 #ifdef USE_CMAKERC
 #include <cmrc/cmrc.hpp>
@@ -13,7 +15,7 @@
 CMRC_DECLARE(romfs);
 #endif
 
-static nlohmann::json translationKeys = nullptr;
+static std::unordered_map<std::string, std::string> translationKeys;
 static std::vector<std::string> splashTexts;
 static TranslationManager::LanguageInfo loadedLanguage;
 
@@ -25,24 +27,29 @@ const std::vector<TranslationManager::LanguageInfo> TranslationManager::getLangu
     std::vector<LanguageInfo> ret;
 
     const std::string path = OS::getRomFSLocation() + "gfx/translations/languages.json";
+    bool ok = false;
+    std::string content;
 #ifdef USE_CMAKERC
     const auto &file = cmrc::romfs::get_filesystem().open(path);
-    nlohmann::json json = nlohmann::json::parse(file.begin(), file.begin() + file.size());
+    content.assign(file.begin(), file.end());
 #else
-    nlohmann::json json;
     std::ifstream file(path);
-    file >> json;
+    content.assign((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    file.close();
 #endif
 
-    for (const auto &[key, name] : json.items()) {
-        ret.push_back({static_cast<unsigned int>(ret.size()), key, name});
+    JsonDocument json = JsonDocument::parseContent(content, ok);
+    if (!ok || !json.root.is_object()) return ret;
+
+    for (const auto &[key, name] : json.root.objectValue) {
+        ret.push_back({static_cast<unsigned int>(ret.size()), key, name.is_string() ? name.get_string() : key});
     }
 
     return ret;
 }
 
 void TranslationManager::loadLanguage(std::string language) {
-    if (language == "") language = SettingsManager::getConfigSettings().value("Language", "en_us");
+    if (language == "") language = SettingsManager::getConfigSettings().valueString("Language", "en_us");
 
     const auto &languages = getLanguages();
     loadedLanguage = *std::find_if(languages.begin(), languages.end(), [&language](LanguageInfo info) { return info.key == language; });
@@ -51,12 +58,19 @@ void TranslationManager::loadLanguage(std::string language) {
     const std::string splashPath = OS::getRomFSLocation() + "gfx/translations/" + language + ".splashes.txt";
 
     splashTexts.clear();
+    translationKeys.clear();
 
 #ifdef USE_CMAKERC
     const auto &fs = cmrc::romfs::get_filesystem();
 
     const auto &file = fs.open(path);
-    translationKeys = nlohmann::json::parse(file.begin(), file.begin() + file.size());
+    bool ok = false;
+    JsonDocument json = JsonDocument::parseContent(std::string(file.begin(), file.end()), ok);
+    if (ok && json.root.is_object()) {
+        for (const auto &[key, value] : json.root.objectValue) {
+            if (value.is_string()) translationKeys[key] = value.get_string();
+        }
+    }
 
     const auto &splashFile = fs.open(splashPath);
     std::string_view sv(splashFile.begin(), splashFile.size());
@@ -69,8 +83,13 @@ void TranslationManager::loadLanguage(std::string language) {
         }
     }
 #else
-    std::ifstream i(path);
-    i >> translationKeys;
+    bool ok = false;
+    JsonDocument json = JsonDocument::parseFile(path, ok, true);
+    if (ok && json.root.is_object()) {
+        for (const auto &[key, value] : json.root.objectValue) {
+            if (value.is_string()) translationKeys[key] = value.get_string();
+        }
+    }
 
     std::ifstream splashFile(splashPath);
     std::string line;
@@ -83,9 +102,9 @@ void TranslationManager::loadLanguage(std::string language) {
 }
 
 const std::string TranslationManager::getTranslation(const std::string &translationKey) {
-    if (translationKeys.is_null() || !translationKeys.is_object() || !translationKeys.contains(translationKey)) return translationKey;
-    const nlohmann::json &translation = translationKeys[translationKey];
-    return translation.is_string() ? translation.get<const std::string>() : translationKey;
+    auto it = translationKeys.find(translationKey);
+    if (it == translationKeys.end()) return translationKey;
+    return it->second;
 }
 
 const std::string TranslationManager::getSplashText() {
@@ -106,10 +125,10 @@ const std::string TranslationManager::getSplashText() {
 
     const std::string usernamePlaceholder = "{UserName}";
     std::string username = OS::getUsername();
-    nlohmann::json json = SettingsManager::getConfigSettings();
-    if (json.contains("EnableUsername") && json["EnableUsername"].is_boolean() && json["EnableUsername"].get<bool>()) {
+    JsonDocument json = SettingsManager::getConfigSettings();
+    if (json.contains("EnableUsername") && json["EnableUsername"].is_bool() && json["EnableUsername"].get_bool()) {
         if (json.contains("Username") && json["Username"].is_string()) {
-            std::string customUsername = json["Username"].get<std::string>();
+            std::string customUsername = json["Username"].get_string();
             if (!customUsername.empty()) {
                 username = customUsername;
             }

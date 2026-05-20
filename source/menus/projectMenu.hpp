@@ -18,7 +18,7 @@ class ProjectMenu : public Menu {
     std::unique_ptr<TextObject> noProjectInfo = nullptr;
     std::unique_ptr<TextObject> noProjectsText = nullptr;
 
-    nlohmann::json settings;
+    JsonDocument settings;
 
     /**
      * @param selectedProjectName if specified, the selected object will be the project name on startup.

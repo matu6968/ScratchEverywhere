@@ -1,9 +1,10 @@
 #pragma once
 
 #include <iosfwd>
+#include <json_document.hpp>
 #include <miniz.h>
 #include <os.hpp>
-#include <parser.hpp>
+#include <simdjson.h>
 #include <string>
 #include <vector>
 
@@ -20,14 +21,17 @@ class Unzip {
     static bool UnpackedInSD;
     static mz_zip_archive zipArchive;
     static std::vector<char> zipBuffer;
+    static simdjson::dom::parser projectParser;
+    static simdjson::dom::parser nestedParser;
+    static bool projectJsonValid;
 
     static void openScratchProject(void *arg);
     static std::vector<std::string> getProjectFiles(const std::string &directory);
     static void *getFileInSB3(const std::string &fileName, size_t *outSize = nullptr);
-    static nlohmann::json unzipProject(std::istream *file);
+    static simdjson::dom::element unzipProject(std::istream *file);
     static int openFile(std::istream *&file);
     static bool load();
     static bool extractProject(const std::string &zipPath, const std::string &destFolder);
     static bool deleteProjectFolder(const std::string &directory);
-    static nlohmann::json getSetting(const std::string &settingName);
+    static JsonValue getSetting(const std::string &settingName);
 };

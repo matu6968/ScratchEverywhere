@@ -1,4 +1,5 @@
 #include "input.hpp"
+#include <json_document.hpp>
 #include <log.hpp>
 
 std::vector<std::string> Input::inputButtons;
@@ -17,21 +18,22 @@ void Input::applyControls(std::string controlsFilePath) {
         std::ifstream file(controlsFilePath);
         if (file.is_open()) {
             Log::log("Loading controls from file: " + controlsFilePath);
-            nlohmann::json controlsJson;
-            file >> controlsJson;
+            std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+            file.close();
+
+            bool ok = false;
+            JsonDocument controlsJson = JsonDocument::parseContent(content, ok);
 
             // Access the "controls" object specifically
-            if (controlsJson.contains("controls")) {
-                for (auto &[key, value] : controlsJson["controls"].items()) {
-                    if (key.empty() || value.empty()) continue;
-                    Input::inputControls[value.get<std::string>()] = key;
-                    Log::log("Loaded control: " + key + " -> " + value.get<std::string>());
+            if (ok && controlsJson.contains("controls") && controlsJson["controls"].is_object()) {
+                for (const auto &[key, value] : controlsJson["controls"].objectValue) {
+                    if (key.empty() || !value.is_string() || value.get_string().empty()) continue;
+                    Input::inputControls[value.get_string()] = key;
+                    Log::log("Loaded control: " + key + " -> " + value.get_string());
                 }
-                file.close();
                 return;
             } else {
                 Log::logWarning("settings file does not contain controls.");
-                file.close();
             }
         } else {
             Log::logWarning("Failed to open controls file: " + controlsFilePath);
