@@ -1,8 +1,10 @@
 #include "parser.hpp"
 #include "sprite.hpp"
 #include <algorithm>
+#include <filesystem.hpp>
 #include <input.hpp>
 #include <limits>
+#include <log.hpp>
 #include <math.hpp>
 #include <os.hpp>
 #include <render.hpp>
@@ -584,9 +586,13 @@ void Parser::loadAdvancedProjectSettings(const nlohmann::json &json) {
 #endif
 
     auto accuratePen = Unzip::getSetting("accuratePen");
-    if (!accuratePen.is_null() && accuratePen.get<bool>())
-        Scratch::accuratePen = true;
+    if (!accuratePen.is_null())
+        Scratch::accuratePen = accuratePen.get<bool>();
+#if defined(RENDERER_SDL2) || defined(RENDERER_SDL3)
+    else Scratch::accuratePen = true;
+#else
     else Scratch::accuratePen = false;
+#endif
 
     auto accurateCollision = Unzip::getSetting("accurateCollision");
     if (accurateCollision.is_null()) {
@@ -644,6 +650,7 @@ void Parser::loadInputs(Block &block, Sprite *newSprite, std::string blockKey, c
         } else if (type == 2 || type == 3) {
             if (inputValue.is_array()) {
                 block.inputs[inputName] = ParsedInput(inputValue[2].get<std::string>());
+                if (inputValue[0].get<int>() == 13) block.inputs[inputName].list = true;
                 Parser::log(indentStr + "\t" + inputName + ": var[" + inputValue[1].get<std::string>() + "]");
             } else {
                 if (!inputValue.is_null()) {
@@ -657,7 +664,6 @@ void Parser::loadInputs(Block &block, Sprite *newSprite, std::string blockKey, c
         if (Scratch::blocks.back() == newBlock) Scratch::blocks.pop_back();                                                                                                          \
         else Scratch::blocks.erase(std::remove(Scratch::blocks.begin(), Scratch::blocks.end(), newBlock), Scratch::blocks.end());                                                    \
         delete newBlock;                                                                                                                                                             \
-        Log::log("folded!");                                                                                                                                                         \
         continue;                                                                                                                                                                    \
     }
 
@@ -705,7 +711,7 @@ bool Parser::loadExtensions(const nlohmann::json &json) {
     if (!json.contains("extensions")) return hasExts;
     for (const std::string &extension : json["extensions"]) {
         const std::string &path = OS::getScratchFolderLocation() + "extensions/" + extension + libraryExtension;
-        if (OS::fileExists(path)) {
+        if (FileSystem::fileExists(path)) {
             void *extensionHandle = dlopen(path.c_str(), RTLD_NOW | RTLD_GLOBAL);
             if (!extensionHandle) {
                 Log::logError("Failed to load native extension, '" + extension + "', dlerror: " + dlerror());

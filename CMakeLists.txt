@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(ScratchEverywhere VERSION 0.40 LANGUAGES CXX C)
+project(ScratchEverywhere VERSION 1.0.0.2 LANGUAGES CXX C)
 
 # error C7555: use of designated initializers requires at least '/std:c++20'
 if(MSVC)
@@ -31,7 +31,7 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/CPM.cmake")
 set(SE_APP_NAME "Scratch Everywhere!" CACHE STRING "Name of the outputed app.")
 set(SE_APP_DESCRIPTION "Play Scratch games on anything!" CACHE STRING "Description of the outputed app.")
 set(SE_APP_AUTHOR "Scratch Everywhere! Contributors" CACHE STRING "Author of the outputed app.")
-set(SE_APP_VERSION "${CMAKE_PROJECT_VERSION}" CACHE STRING "Version of the outputed app.")
+set(SE_APP_VERSION "1.0-rc2" CACHE STRING "Version of the outputed app.")
 
 if(VITA)
 	set(SE_APP_TITLEID "NTXS00053" CACHE STRING "Title ID of the outputed app.")
@@ -101,6 +101,15 @@ cmake_dependent_option(SE_CLOUDVARS "Enable cloud variables." ON "SE_ALLOW_CLOUD
 cmake_dependent_option(SE_DOWNLOAD "Enable the ability to use the internet to download files, such as Text-To-Speech blocks." ON "SE_ALLOW_DOWNLOAD" OFF)
 
 option(SE_MENU "Enables the SE! Main Menu." ON)
+
+if(NOT DEFINED SE_DECTALK_DEFAULT)
+	set(SE_DECTALK_DEFAULT OFF)
+endif()
+if(SE_DECTALK_DEFAULT)
+	option(SE_DECTALK "Build DECtalk for TTS." ON)
+else()
+	option(SE_DECTALK "Build DECtalk for TTS." OFF)
+endif()
 
 #  disable menu if a project is in RomFS
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/romfs/project" OR EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/romfs/project.sb3" OR LIBRETRO)
@@ -187,15 +196,29 @@ if(SE_MENU)
 	file(GLOB_RECURSE GFXFILES
 		"${CMAKE_CURRENT_SOURCE_DIR}/gfx/menu/*"
 		"${CMAKE_CURRENT_SOURCE_DIR}/gfx/ingame/*"
+		"${CMAKE_CURRENT_SOURCE_DIR}/gfx/translations/*"
 	)
 else()
-	file(GLOB_RECURSE GFXFILES
-		"${CMAKE_CURRENT_SOURCE_DIR}/gfx/ingame/*"
-	)
+	if(NINTENDO_DS)
+		file(GLOB_RECURSE GFXFILES
+			"${CMAKE_CURRENT_SOURCE_DIR}/gfx/menu/Ubuntu-Bold.ttf"
+			"${CMAKE_CURRENT_SOURCE_DIR}/gfx/ingame/*"
+			"${CMAKE_CURRENT_SOURCE_DIR}/gfx/translations/*"
+		)
+	else()
+		file(GLOB_RECURSE GFXFILES
+			"${CMAKE_CURRENT_SOURCE_DIR}/gfx/ingame/*"
+			"${CMAKE_CURRENT_SOURCE_DIR}/gfx/translations/*"
+		)
+	endif()
 endif()
 
 if(NOT SE_SVG)
 	list(FILTER GFXFILES EXCLUDE REGEX ".*/gfx/ingame/fonts/.*")
+endif()
+
+if(NINTENDO_DS OR NINTENDO_3DS OR NINTENDO_GAMECUBE OR PSP)
+	list(FILTER GFXFILES EXCLUDE REGEX ".*/gfx/menu/Ubuntu-Bold.ttf")
 endif()
 
 foreach(file IN LISTS GFXFILES)
@@ -208,6 +231,10 @@ foreach(file IN LISTS GFXFILES)
 
     configure_file("${file}" "${DEST_PATH}" COPYONLY)
 endforeach()
+
+if((NINTENDO_DS OR NINTENDO_GAMECUBE OR PSP OR NINTENDO_3DS) AND (SE_MENU OR NINTENDO_DS))
+	configure_file("${CMAKE_CURRENT_SOURCE_DIR}/gfx/nds/Ubuntu-Bold.ttf" "${CMAKE_CURRENT_SOURCE_DIR}/romfs/gfx/menu/Ubuntu-Bold.ttf" COPYONLY)
+endif()
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/deps/add_dependency.cmake")
 
@@ -259,7 +286,15 @@ if(SE_EXECUTABLE)
 		add_executable(scratch-everywhere WIN32 ${SOURCE_FILES})
 	endif()
 	set_target_properties(scratch-everywhere PROPERTIES OUTPUT_NAME "${SE_OUTPUT_NAME}")
-	target_link_libraries(scratch-everywhere PRIVATE se-interface)
+	if(CMAKE_SYSTEM_NAME STREQUAL "OpenBSD")
+		target_link_libraries(scratch-everywhere PRIVATE se-interface kvm)
+	elseif(CMAKE_SYSTEM_NAME STREQUAL "SunOS")
+		target_link_libraries(scratch-everywhere PRIVATE se-interface proc)
+	elseif(CMAKE_SYSTEM_NAME STREQUAL "Haiku")
+		target_link_libraries(scratch-everywhere PRIVATE se-interface haiku)
+	else()
+		target_link_libraries(scratch-everywhere PRIVATE se-interface)
+	endif()
 
 	if(SE_ASAN)
 		target_compile_options(scratch-everywhere PRIVATE -fsanitize=address -fno-omit-frame-pointer)
@@ -323,6 +358,7 @@ if(SE_AUDIO)
 		se_add_dependency(se-interface stb_vorbis)
 	endif()
 	se_add_dependency(se-interface dr_libs)
+	se_add_dependency(se-interface tsf)
 endif()
 
 if(SE_ALLOW_NATIVE_EXTENSIONS)
@@ -347,6 +383,15 @@ endif()
 if(SE_CLOUDVARS)
 	target_compile_definitions(se-interface INTERFACE ENABLE_CLOUDVARS)
 	se_add_dependency(se-interface mist++)
+endif()
+
+if(SE_DECTALK)
+	target_compile_definitions(se-interface INTERFACE ENABLE_DECTALK)
+	se_add_dependency(se-interface dtc)
+endif()
+
+if(SE_DECTALK_DEFAULT)
+	target_compile_definitions(se-interface INTERFACE DECTALK_DEFAULT)
 endif()
 
 if(SE_BITMAP)
@@ -391,6 +436,7 @@ target_link_libraries(se-interface INTERFACE ryuJS)
 se_add_dependency(se-interface nlohmann_json)
 se_add_dependency(se-interface miniz)
 se_add_dependency(se-interface expected-lite)
+se_add_dependency(se-interface __getexecname)
 
 if(SE_SVG)
 	se_add_dependency(se-interface lunasvg)
