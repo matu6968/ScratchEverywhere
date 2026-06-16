@@ -1,5 +1,6 @@
 #pragma once
 #include "value.hpp"
+#include <functional>
 #include <memory>
 #include <string>
 #include <timer.hpp>
@@ -194,13 +195,12 @@ struct ParsedField {
     std::string id;
 };
 
-using BlockFunc = BlockResult (*)(Block *, ScriptThread *, Sprite *, Value *);
+using BlockFunc = std::function<BlockResult(Block *, ScriptThread *, Sprite *, Value *)>;
 
 struct Block {
     Block *nextBlock = nullptr;
     std::string opcode = "";
     BlockFunc blockFunction = nullptr;
-
     Block *MyBlockDefinitionID = nullptr;
     std::vector<std::string> argumentIDs;
     std::vector<std::string> argumentNames;
