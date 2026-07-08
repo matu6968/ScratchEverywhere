@@ -47,7 +47,9 @@ std::unordered_map<std::string, SVGFont> Image::loadedFonts = {
     {"Handwriting", {"gfx/ingame/fonts/Handlee-Regular", false}},
     {"Marker", {"gfx/ingame/fonts/Knewave-Regular", false}},
     {"Curly", {"gfx/ingame/fonts/Griffy-Regular", false}},
-    {"Pixel", {"gfx/ingame/fonts/Grand9KPixel", false}}};
+    {"Pixel", {"gfx/ingame/fonts/Grand9KPixel", false}},
+    {"Archivo", {"gfx/ingame/fonts/Archivo-Regular", false}},
+    {"Monospace", {"gfx/ingame/fonts/Monospace", false}}};
 #endif
 
 constexpr unsigned int maxScale = 5; // TODO: Make project setting, set to 0 to remove scaling limit.

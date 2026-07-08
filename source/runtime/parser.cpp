@@ -1,6 +1,8 @@
 #include "parser.hpp"
 #include "sprite.hpp"
 #include <algorithm>
+#include <array>
+#include <cctype>
 #include <filesystem.hpp>
 #include <input.hpp>
 #include <limits>
@@ -740,6 +742,33 @@ void Parser::loadFields(Block &block, const std::string &blockKey, const nlohman
 
 static constexpr std::array<std::string_view, 13> builtInExtensions = {"music", "pen", "videoSensing", "text2speech", "translate", "makeymakey", "microbit", "ev3", "boost", "wedo2", "goDirect", "coreExtensions", "nishiowoDectalk"};
 
+static bool equalsIgnoreCase(const std::string &a, const std::string &b) {
+    if (a.size() != b.size()) return false;
+    for (size_t i = 0; i < a.size(); i++) {
+        if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) return false;
+    }
+    return true;
+}
+
+void Parser::detectScratchMod(const nlohmann::json &json) {
+    Scratch::detectedMod.clear();
+    Scratch::isUnknownMod = false;
+
+    if (!json.contains("meta") || !json["meta"].is_object()) return;
+    if (!json["meta"].contains("platform") || !json["meta"]["platform"].is_object()) return;
+    if (!json["meta"]["platform"].contains("name") || !json["meta"]["platform"]["name"].is_string()) return;
+
+    Scratch::detectedMod = json["meta"]["platform"]["name"].get<std::string>();
+
+    static constexpr std::array<std::string_view, 2> knownPlatforms = {"Scratch", "TurboWarp"};
+    for (const auto &known : knownPlatforms) {
+        if (equalsIgnoreCase(Scratch::detectedMod, std::string(known))) return;
+    }
+
+    Scratch::isUnknownMod = true;
+    Parser::log("Detected Scratch mod platform: " + Scratch::detectedMod);
+}
+
 bool Parser::loadExtensions(const nlohmann::json &json) {
     bool hasNativeExts = false;
 #if defined(ENABLE_NATIVE_EXTENSIONS) || defined(ENABLE_CUSTOM_EXTENSIONS)
@@ -982,9 +1011,12 @@ void Parser::setSubstack(Block *startBlock, Block *stopBlock) {
 
     while (current != nullptr && current != stopBlock) {
 
-        bool isIf = (current->opcode == "control_if" || current->opcode == "control_if_else");
+        bool isIf = (current->opcode == "control_if" || current->opcode == "control_if_else" || current->opcode == "control_expandableIf");
 
         std::vector<std::string> substacks = {"SUBSTACK", "SUBSTACK2"};
+        for (int i = 1; current->inputs.count("SUBSTACK" + std::to_string(i)); i++) {
+            substacks.push_back("SUBSTACK" + std::to_string(i));
+        }
         for (const std::string &stackName : substacks) {
             if (current->inputs.count(stackName) && current->inputs[stackName].block != nullptr) {
                 Block *firstSubBlock = current->inputs[stackName].block;

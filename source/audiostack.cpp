@@ -22,6 +22,7 @@ SoundConfig::SoundConfig() {
     this->volume = 100;
     this->pan = 0;
     this->pitch = 1;
+    this->stopFadeout = 0;
 }
 
 /* TODO: Oh no! this does not check errors from dr_libs. Please anyone,
@@ -90,6 +91,8 @@ void SoundStream::commonInit() {
     this->paused = false;
     this->auto_clean = false;
     this->no_lock = false;
+    this->fadingOut = false;
+    this->fadeMultiplier = 1.0f;
 
     Mixer::mutex.lock();
 
@@ -289,6 +292,69 @@ int SoundStream::read(float *output, int frames) {
     return 0;
 }
 
+bool SoundStream::seekToSeconds(double seconds) {
+#ifdef ENABLE_AUDIO
+    if (seconds < 0.0) seconds = 0.0;
+
+    if (this->type == SoundStreamWAV) {
+        const drwav_uint64 targetFrame = static_cast<drwav_uint64>(seconds * this->wav.sampleRate);
+        if (targetFrame >= this->wav.totalPCMFrameCount) {
+            this->paused = true;
+            return false;
+        }
+        if (!drwav_seek_to_pcm_frame(&this->wav, targetFrame)) {
+            this->paused = true;
+            return false;
+        }
+#if !defined(NO_MP3)
+    } else if (this->type == SoundStreamMP3) {
+        const drmp3_uint64 targetFrame = static_cast<drmp3_uint64>(seconds * this->mp3.sampleRate);
+        if (!drmp3_seek_to_pcm_frame(&this->mp3, targetFrame)) {
+            this->paused = true;
+            return false;
+        }
+#endif
+#if !defined(NO_VORBIS)
+    } else if (this->type == SoundStreamVorbis) {
+        const unsigned int targetSample = static_cast<unsigned int>(seconds * this->rate);
+        if (stb_vorbis_seek(this->vorbis, targetSample) != 0) {
+            this->paused = true;
+            return false;
+        }
+#endif
+    } else {
+        return false;
+    }
+
+    this->paused = false;
+    this->fadingOut = false;
+    this->fadeMultiplier = 1.0f;
+    return true;
+#endif
+    return false;
+}
+
+double SoundStream::getLengthSeconds() const {
+#ifdef ENABLE_AUDIO
+    if (this->rate <= 0) return 0.0;
+
+    if (this->type == SoundStreamWAV) {
+        return static_cast<double>(this->wav.totalPCMFrameCount) / static_cast<double>(this->wav.sampleRate);
+#if !defined(NO_MP3)
+    } else if (this->type == SoundStreamMP3) {
+        return static_cast<double>(this->mp3.totalPCMFrameCount) / static_cast<double>(this->mp3.sampleRate);
+#endif
+#if !defined(NO_VORBIS)
+    } else if (this->type == SoundStreamVorbis) {
+        const int samples = stb_vorbis_stream_length_in_samples(this->vorbis);
+        if (samples <= 0) return 0.0;
+        return static_cast<double>(samples) / static_cast<double>(this->rate);
+#endif
+    }
+#endif
+    return 0.0;
+}
+
 std::unordered_map<std::string, SoundStream *> Mixer::streams;
 std::unordered_map<std::string, SoundConfig> Mixer::configs;
 SE_Mutex Mixer::mutex;
@@ -381,8 +447,25 @@ void Mixer::requestSound(short *output, int frames) {
             continue;
         }
 
+        float volume = s->config.volume / 100.0f;
+        if (s->fadingOut) {
+            const float fadeDuration = std::max(s->config.stopFadeout, 0.001f);
+            s->fadeMultiplier -= static_cast<float>(frames) / (fadeDuration * static_cast<float>(Mixer::rate));
+            if (s->fadeMultiplier <= 0.0f) {
+                s->paused = true;
+                s->fadingOut = false;
+                s->fadeMultiplier = 1.0f;
+                it++;
+                if (s->auto_clean) {
+                    s->no_lock = true;
+                    delete s;
+                }
+                continue;
+            }
+            volume *= s->fadeMultiplier;
+        }
+
         const float pitch = s->config.pitch;
-        const float volume = s->config.volume / 100.0f;
         const float step = (float)s->rate * pitch / (float)Mixer::rate;
         int maxFramesNeeded = (int)(frames * step) + 2;
 
@@ -505,7 +588,12 @@ void Mixer::stopSound(std::string name) {
 #ifdef ENABLE_AUDIO
     FIND({});
 
-    e->second->paused = true;
+    if (e->second->config.stopFadeout > 0.0f) {
+        e->second->fadingOut = true;
+        e->second->fadeMultiplier = 1.0f;
+    } else {
+        e->second->paused = true;
+    }
 
     END;
 #endif
@@ -581,6 +669,63 @@ void Mixer::setAutoClean(std::string name, bool toggle) {
 
     END;
 #endif
+}
+
+void Mixer::setStopFadeout(std::string name, float seconds) {
+#ifdef ENABLE_AUDIO
+    const float fadeout = std::max(0.0f, seconds);
+
+    Mixer::mutex.lock();
+
+    SoundConfig config;
+    const auto configIt = Mixer::configs.find(name);
+    if (configIt != Mixer::configs.end()) config = configIt->second;
+    config.stopFadeout = fadeout;
+    Mixer::configs[name] = config;
+
+    const auto streamIt = streams.find(name);
+    if (streamIt != streams.end()) {
+        streamIt->second->config.stopFadeout = fadeout;
+    }
+
+    Mixer::mutex.unlock();
+#endif
+}
+
+bool Mixer::playSound(const std::string &fullName, double startSeconds) {
+#ifdef ENABLE_AUDIO
+    Mixer::mutex.lock();
+    const auto existing = streams.find(fullName);
+    if (existing != streams.end()) {
+        existing->second->no_lock = true;
+        delete existing->second;
+    }
+    Mixer::mutex.unlock();
+
+    SoundStream *strm = nullptr;
+    if (Scratch::projectType == ProjectType::UNZIPPED) {
+        strm = new SoundStream(fullName);
+    } else {
+        strm = new SoundStream(Scratch::sb3InRam ? &Unzip::zipArchive : nullptr, fullName);
+    }
+
+    if (strm == nullptr || strm->error.has_value()) {
+        if (strm != nullptr) delete strm;
+        return false;
+    }
+
+    if (startSeconds > 0.0) {
+        strm->seekToSeconds(startSeconds);
+    } else {
+        strm->paused = false;
+        strm->fadingOut = false;
+        strm->fadeMultiplier = 1.0f;
+    }
+
+    setAutoClean(fullName, true);
+    return !strm->paused;
+#endif
+    return false;
 }
 
 float Mixer::beatsToSec(float v) {

@@ -12,6 +12,7 @@ struct Parser {
 
     static void loadSprites(const nlohmann::json &json);
     static bool loadExtensions(const nlohmann::json &json);
+    static void detectScratchMod(const nlohmann::json &json);
 
 #ifdef ENABLE_CLOUDVARS
     static void initMist();

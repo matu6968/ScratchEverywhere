@@ -23,6 +23,17 @@ class Unzip {
 
     static void openScratchProject(void *arg);
     static std::vector<std::string> getProjectFiles(const std::string &directory);
+
+    /**
+     * Checks if the path ends with a known Scratch project archive extension (.sb3, or a mod equivalent like .pmp).
+     */
+    static bool hasProjectExtension(const std::string &path);
+
+    /**
+     * Resolves a project path without extension to an existing project file by trying every known archive extension.
+     * Falls back to `basePath + ".sb3"` if no file is found.
+     */
+    static std::string resolveProjectFile(const std::string &basePath);
     static void *getFileInSB3(const std::string &fileName, size_t *outSize = nullptr);
     static nlohmann::json unzipProject(std::istream *file);
     static int openFile(std::istream *&file);

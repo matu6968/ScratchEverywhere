@@ -4,6 +4,7 @@
 #include "parser.hpp"
 #include "runtime.hpp"
 #include "translation.hpp"
+#include <array>
 #include <cstring>
 #include <ctime>
 #include <errno.h>
@@ -44,6 +45,24 @@ std::string Unzip::filePath = "";
 mz_zip_archive Unzip::zipArchive;
 std::vector<char> Unzip::zipBuffer;
 bool Unzip::UnpackedInSD = false;
+
+// Archive extensions of Scratch and Scratch mod projects. All share the .sb3 zip structure.
+static constexpr std::array<std::string_view, 2> projectExtensions = {".sb3", ".pmp"};
+
+bool Unzip::hasProjectExtension(const std::string &path) {
+    for (const auto &ext : projectExtensions) {
+        if (path.size() >= ext.size() && path.compare(path.size() - ext.size(), ext.size(), ext) == 0) return true;
+    }
+    return false;
+}
+
+std::string Unzip::resolveProjectFile(const std::string &basePath) {
+    for (const auto &ext : projectExtensions) {
+        const std::string candidate = basePath + std::string(ext);
+        if (FileSystem::fileExists(candidate)) return candidate;
+    }
+    return basePath + ".sb3";
+}
 
 int Unzip::openFile(std::istream *&file) {
     Log::log("Unzipping Scratch project...");
@@ -110,7 +129,7 @@ int Unzip::openFile(std::istream *&file) {
     // SD card Project
     Log::logWarning("Main Menu already done, loading SD card project.");
     // check if normal Project
-    if (filePath.size() >= 4 && filePath.substr(filePath.size() - 4, filePath.size()) == ".sb3") {
+    if (hasProjectExtension(filePath)) {
         Log::log("Normal .sb3 project in SD card ");
         file = new std::ifstream(filePath, std::ios::binary | std::ios::ate);
         if (file == nullptr || !(*file)) {
@@ -214,6 +233,7 @@ void Unzip::openScratchProject(void *arg) {
 
     loadingState = TranslationManager::getTranslation("ui.loading.extensions");
     Scratch::hasNativeExtensions = Parser::loadExtensions(project_json);
+    Parser::detectScratchMod(project_json);
 
     loadingState = TranslationManager::getTranslation("ui.loading.sprites");
     Parser::loadSprites(project_json);
@@ -245,8 +265,7 @@ std::vector<std::string> Unzip::getProjectFiles(const std::string &directory) {
     }
 
     projectFiles.value().erase(std::remove_if(projectFiles.value().begin(), projectFiles.value().end(), [](std::string file) {
-                                   if (file.size() < 4) return true;
-                                   return file.compare(file.size() - 4, 4, ".sb3") != 0;
+                                   return !Unzip::hasProjectExtension(file);
                                }),
                                projectFiles.value().end());
 

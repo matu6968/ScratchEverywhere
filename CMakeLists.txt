@@ -126,6 +126,7 @@ cmake_dependent_option(SE_CUSTOM_EXTENSIONS "Enables support for custom extensio
 
 option(SE_SVG "Enable support for SVG images." ON)
 option(SE_BITMAP "Enable support for Bitmap images." ON)
+option(SE_MOD_PENGUINMOD "Enable statically-linked PenguinMod compatibility blocks." ON)
 
 function(set_preferred_cache_var var_name priority_list valid_options_list doc_string)
 	if(DEFINED ${var_name} AND NOT "${${var_name}}" STREQUAL "")
@@ -251,6 +252,10 @@ if(SE_CUSTOM_EXTENSIONS)
 	list(APPEND SOURCES "source/runtime/extensions")
 endif()
 
+if(SE_MOD_PENGUINMOD)
+	list(APPEND SOURCES "source/runtime/mods/penguinmod")
+endif()
+
 if(SE_MENU)
 	list(APPEND SOURCES "source/menus")
 endif()
@@ -361,6 +366,9 @@ endif()
 
 if(SE_ALLOW_NATIVE_EXTENSIONS)
 	target_compile_definitions(se-interface INTERFACE ENABLE_NATIVE_EXTENSIONS)
+endif()
+if(SE_MOD_PENGUINMOD)
+	target_compile_definitions(se-interface INTERFACE ENABLE_MOD_PENGUINMOD)
 endif()
 if(SE_CACHING)
 	target_compile_definitions(se-interface INTERFACE ENABLE_CACHING)

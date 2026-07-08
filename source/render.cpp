@@ -30,7 +30,7 @@ void Render::calculateRenderPosition(Sprite *sprite, const bool isSVG) {
         sprite->renderInfo.oldRotation++;
         sprite->renderInfo.oldX++;
         sprite->renderInfo.oldY++;
-        sprite->renderInfo.renderScaleX = (sprite->size * 0.01f) / costume.bitmapResolution;
+        sprite->renderInfo.renderScaleX = (sprite->size * 0.01f * sprite->stretchX * 0.01f) / costume.bitmapResolution;
 
         if (renderMode != BOTH_SCREENS && screenHeight != Scratch::projectHeight) {
             float scale = std::min(static_cast<float>(screenWidth) / Scratch::projectWidth, static_cast<float>(screenHeight) / Scratch::projectHeight);
@@ -39,7 +39,14 @@ void Render::calculateRenderPosition(Sprite *sprite, const bool isSVG) {
         if (Scratch::bitmapHalfQuality && !isSVG && costume.bitmapResolution == 2) {
             sprite->renderInfo.renderScaleX *= 2;
         }
-        sprite->renderInfo.renderScaleY = sprite->renderInfo.renderScaleX;
+        sprite->renderInfo.renderScaleY = (sprite->size * 0.01f * sprite->stretchY * 0.01f) / costume.bitmapResolution;
+        if (renderMode != BOTH_SCREENS && screenHeight != Scratch::projectHeight) {
+            float scale = std::min(static_cast<float>(screenWidth) / Scratch::projectWidth, static_cast<float>(screenHeight) / Scratch::projectHeight);
+            sprite->renderInfo.renderScaleY *= scale;
+        }
+        if (Scratch::bitmapHalfQuality && !isSVG && costume.bitmapResolution == 2) {
+            sprite->renderInfo.renderScaleY *= 2;
+        }
     }
     if (sprite->rotation != sprite->renderInfo.oldRotation) {
         sprite->renderInfo.oldRotation = sprite->rotation;

@@ -40,6 +40,7 @@ class SoundConfig {
     float volume;
     float pan;
     float pitch;
+    float stopFadeout;
 
     SoundConfig();
 };
@@ -80,6 +81,8 @@ class SoundStream {
     bool paused;
     bool auto_clean;
     bool no_lock;
+    bool fadingOut;
+    float fadeMultiplier;
 
     /**
      * Set if an error occurs in the constructor.
@@ -96,6 +99,8 @@ class SoundStream {
     ~SoundStream();
 
     int read(float *output, int frames);
+    bool seekToSeconds(double seconds);
+    double getLengthSeconds() const;
 };
 
 class Mixer {
@@ -125,6 +130,8 @@ class Mixer {
     static void setSoundVolume(std::string name, float volume);
     static float getSoundVolume(std::string name);
     static void setAutoClean(std::string name, bool toggle);
+    static void setStopFadeout(std::string name, float seconds);
+    static bool playSound(const std::string &fullName, double startSeconds = 0.0);
     static void cleanupAudio();
     static float beatsToSec(float v);
     static int note(int instrument, int note, float volume, float beats);

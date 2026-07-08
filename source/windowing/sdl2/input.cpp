@@ -121,7 +121,8 @@ void Input::getInput() {
         std::string keyName = rawName ? rawName : "";
         std::transform(keyName.begin(), keyName.end(), keyName.begin(), ::tolower);
 
-        if (keyName == "up") keyName = "up arrow";
+        if (scancode == SDL_SCANCODE_SPACE) keyName = "space";
+        else if (keyName == "up") keyName = "up arrow";
         else if (keyName == "down") keyName = "down arrow";
         else if (keyName == "left") keyName = "left arrow";
         else if (keyName == "right") keyName = "right arrow";

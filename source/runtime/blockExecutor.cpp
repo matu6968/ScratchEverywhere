@@ -26,6 +26,7 @@ int BlockExecutor::dragPositionOffsetX;
 int BlockExecutor::dragPositionOffsetY;
 bool BlockExecutor::sortSprites = false;
 bool BlockExecutor::stopClicked = false;
+bool BlockExecutor::greenFlagClicked = false;
 std::vector<ScriptThread *> BlockExecutor::threads;
 
 std::unordered_map<std::string, BlockFunc> &BlockExecutor::getHandlers() {
@@ -144,6 +145,10 @@ void BlockExecutor::runThreads() {
     if (stopClicked) {
         Scratch::stopClicked();
     }
+    if (greenFlagClicked) {
+        greenFlagClicked = false;
+        Scratch::greenFlagClicked();
+    }
 }
 
 BlockResult BlockExecutor::runThread(ScriptThread &thread, Sprite &sprite, Value *outValue) {
@@ -188,6 +193,36 @@ void BlockExecutor::runAllBlocksByOpcodeInSprite(const std::string &opcode, Spri
     }
 }
 
+static void runHatsWithoutRestart(Sprite *sprite, const std::string &opcode) {
+    if (sprite->hats[opcode].empty()) return;
+    std::vector<Block *> tempHats(sprite->hats[opcode].begin(), sprite->hats[opcode].end());
+    for (Block *hat : tempHats) {
+        BlockExecutor::startThread(sprite, hat, false);
+    }
+}
+
+static void runConditionalHatsWithoutRestart(Sprite *sprite, const std::string &opcode, const std::string &inputName) {
+    if (sprite->hats[opcode].empty()) return;
+    std::vector<Block *> tempHats(sprite->hats[opcode].begin(), sprite->hats[opcode].end());
+    for (Block *hat : tempHats) {
+        Scratch::resetInput(hat, "");
+
+        ScriptThread evalThread;
+        evalThread.blockHat = hat;
+        evalThread.nextBlock = hat;
+        evalThread.finished = false;
+        evalThread.sprite = sprite;
+
+        Value condition;
+        if (!Scratch::getInput(hat, inputName, &evalThread, sprite, condition)) continue;
+        Scratch::resetInput(hat, "");
+
+        if (condition.asBoolean()) {
+            BlockExecutor::startThread(sprite, hat, false);
+        }
+    }
+}
+
 // ToDo: That could be optimized, but it works for now and i want to move on to other stuff
 void BlockExecutor::executeKeyHats() {
     for (const auto &key : Input::keyHeldDuration) {
@@ -213,14 +248,33 @@ void BlockExecutor::executeKeyHats() {
     for (Sprite *currentSprite : Scratch::sprites) {
         if (!currentSprite->hats["event_whenkeypressed"].empty()) {
             for (Block *block : currentSprite->hats["event_whenkeypressed"]) {
-                std::string key = Scratch::getFieldValue(*block, "KEY_OPTION");
-                if (Input::keyHeldDuration.find(key) != Input::keyHeldDuration.end() && (Input::keyHeldDuration.find(key)->second == 1 || Input::keyHeldDuration.find(key)->second > 15 * (Scratch::FPS / 30.0f))) {
+                const std::string key = Input::convertToKey(Value(Scratch::getFieldValue(*block, "KEY_OPTION")));
+                if (Input::keyHeldDuration.find(key) != Input::keyHeldDuration.end() && (Input::keyHeldDuration[key] == 1 || Input::keyHeldDuration[key] > 15 * (Scratch::FPS / 30.0f))) {
                     BlockExecutor::startThread(currentSprite, block, false);
                 }
             }
         }
+        if (!currentSprite->hats["event_whenkeyhit"].empty()) {
+            for (Block *block : currentSprite->hats["event_whenkeyhit"]) {
+                const std::string key = Input::convertToKey(Value(Scratch::getFieldValue(*block, "KEY_OPTION")));
+                if (Input::keyHeldDuration.find(key) != Input::keyHeldDuration.end() && Input::keyHeldDuration[key] == 1) {
+                    BlockExecutor::startThread(currentSprite, block, false);
+                }
+            }
+        }
+        if (Input::mouseScrollY != 0 && !currentSprite->hats["event_whenmousescrolled"].empty()) {
+            const std::string scrollDirection = Input::mouseScrollY > 0 ? "up" : "down";
+            for (Block *block : currentSprite->hats["event_whenmousescrolled"]) {
+                if (Scratch::getFieldValue(*block, "KEY_OPTION") == scrollDirection) {
+                    BlockExecutor::startThread(currentSprite, block, false);
+                }
+            }
+        }
+        runHatsWithoutRestart(currentSprite, "event_always");
+        runConditionalHatsWithoutRestart(currentSprite, "event_whenanything", "ANYTHING");
         BlockExecutor::runAllBlocksByOpcodeInSprite("makeymakey_whenMakeyKeyPressed", currentSprite);
     }
+    Input::mouseScrollY = 0;
     BlockExecutor::runAllBlocksByOpcode("makeymakey_whenCodePressed");
 }
 

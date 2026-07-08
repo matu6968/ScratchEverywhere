@@ -16,8 +16,16 @@ double SpeechManagerSDL2::getCurrentTime() {
 }
 
 void SpeechManagerSDL2::createSpeechObject(Sprite *sprite, const std::string &message) {
-    speechObjects[sprite] = std::make_unique<SpeechTextObjectSDL2>(message, 200);
-    static_cast<SpeechTextObjectSDL2 *>(speechObjects[sprite].get())->setRenderer(renderer);
+    const std::string fontPath = sprite->speechFontPath.empty() ? "gfx/ingame/fonts/NotoSans-Medium" : sprite->speechFontPath;
+    const int fontSize = sprite->speechFontSize > 0 ? sprite->speechFontSize : 16;
+    const int maxWidth = sprite->speechBubbleMaxWidth > 0 ? sprite->speechBubbleMaxWidth : 200;
+
+    speechObjects[sprite] = std::make_unique<SpeechTextObjectSDL2>(message, maxWidth, fontPath, fontSize);
+    SpeechTextObjectSDL2 *speechObj = static_cast<SpeechTextObjectSDL2 *>(speechObjects[sprite].get());
+    speechObj->setRenderer(renderer);
+    if (sprite->speechTextColor != 0) {
+        speechObj->setColor(sprite->speechTextColor);
+    }
 }
 
 void SpeechManagerSDL2::render(int offsetX, int offsetY) {

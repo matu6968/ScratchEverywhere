@@ -37,6 +37,7 @@
   "ui.loading.extensions": "Încarcă Extenzii",
   "ui.loading.finish": "Termină",
   "ui.popup.extensions": "Stai! Proiectul are Extensii Native. Extensii Native are access complet la dispositivul.",
+  "ui.popup.scratchMod": "Warning! This project was made in a Scratch mod. Compatibility is not guaranteed and running it is at your own risk.",
   "version.prefix.beta": "Versiune Beta",
   "version.prefix.release": "Versiune Public",
   "version.prefix.releaseCanidate": "Canditidă Public",

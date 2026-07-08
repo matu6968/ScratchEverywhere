@@ -297,6 +297,13 @@ class Sprite {
     float size;
     float rotation;
     int layer;
+    float stretchX = 100.0f;
+    float stretchY = 100.0f;
+    std::string speechFontPath;
+    int speechFontSize = 16;
+    int speechBubbleMaxWidth = 200;
+    int speechTextColor = 0;
+    std::string speechTintColor = "#ffffff";
     RenderInfo renderInfo;
 
     /** Music **/

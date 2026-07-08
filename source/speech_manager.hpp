@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 class SpeechManager {
   protected:
@@ -43,6 +44,12 @@ class SpeechManager {
         auto it = speechStyles.find(sprite);
         if (it != speechStyles.end()) return it->second;
         return "";
+    }
+
+    std::vector<float> getSpeechSize(Sprite *sprite) {
+        auto it = speechObjects.find(sprite);
+        if (it != speechObjects.end() && it->second) return it->second->getSize();
+        return {0.0f, 0.0f};
     }
 
     virtual void render(int offsetX = 0, int offsetY = 0) = 0;

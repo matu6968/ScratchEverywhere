@@ -39,6 +39,7 @@ class Input {
     static std::vector<std::string> inputBuffer;
     static std::unordered_map<std::string, int> keyHeldDuration;
     static std::unordered_set<Block *> codePressedBlockOpcodes;
+    static int mouseScrollY;
 
     // static std::vector<int> getTouchPosition();
     static std::array<int, 2> getTouchPosition();

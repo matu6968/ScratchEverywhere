@@ -28,8 +28,8 @@ SCRATCH_BLOCK(sceneManager, openSB3) {
     if (Unzip::filePath.size() >= 1 && Unzip::filePath.back() == '/') {
         Unzip::filePath = Unzip::filePath.substr(0, Unzip::filePath.size() - 1);
     }
-    if (!FileSystem::fileExists(Unzip::filePath + "/project.json"))
-        Unzip::filePath = Unzip::filePath + ".sb3";
+    if (!FileSystem::fileExists(Unzip::filePath + "/project.json") && !Unzip::hasProjectExtension(Unzip::filePath))
+        Unzip::filePath = Unzip::resolveProjectFile(Unzip::filePath);
 
     Scratch::dataNextProject = Value();
     Scratch::shouldStop = true;
@@ -56,8 +56,8 @@ SCRATCH_BLOCK(sceneManager, openSB3withData) {
     if (Unzip::filePath.size() >= 1 && Unzip::filePath.back() == '/') {
         Unzip::filePath = Unzip::filePath.substr(0, Unzip::filePath.size() - 1);
     }
-    if (!FileSystem::fileExists(Unzip::filePath + "/project.json"))
-        Unzip::filePath = Unzip::filePath + ".sb3";
+    if (!FileSystem::fileExists(Unzip::filePath + "/project.json") && !Unzip::hasProjectExtension(Unzip::filePath))
+        Unzip::filePath = Unzip::resolveProjectFile(Unzip::filePath);
 
     Scratch::dataNextProject = arg1;
     Scratch::shouldStop = true;

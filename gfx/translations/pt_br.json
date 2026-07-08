@@ -36,6 +36,7 @@
   "ui.loading.extensions": "Carregando Extensões...",
   "ui.loading.finish": "Terminando...",
   "ui.popup.extensions": "!AVISO! Este projeto tem extensões não-originais/extensões custom/externas, estas extensões tem ACESSO TOTAL a o seu sistema, então tome cuidado para não rodar uma que quebre/bricka seu sistema. !AVISO!",
+  "ui.popup.scratchMod": "Warning! This project was made in a Scratch mod. Compatibility is not guaranteed and running it is at your own risk.",
   "version.prefix.beta": "Build Beta/Antecipada",
   "version.prefix.release": "Lancamento",
   "version.prefix.releaseCanidate": "Candidato de Lancamento/Acceso antecipado",

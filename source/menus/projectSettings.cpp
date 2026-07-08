@@ -217,7 +217,7 @@ void ProjectSettings::render() {
         unpackMenu.render();
 
         if (canUnpacked) {
-            if (Unzip::extractProject(OS::getScratchFolderLocation() + projectPath + ".sb3", OS::getScratchFolderLocation() + projectPath)) {
+            if (Unzip::extractProject(Unzip::resolveProjectFile(OS::getScratchFolderLocation() + projectPath), OS::getScratchFolderLocation() + projectPath)) {
                 unpackMenu.addToJsonArray(OS::getScratchFolderLocation() + "UnpackedGames.json", projectPath);
             }
         } else {

@@ -144,6 +144,9 @@ void WindowSDL2::pollEvents() {
                 resize(w, h);
             }
             break;
+        case SDL_MOUSEWHEEL:
+            Input::mouseScrollY += event.wheel.y;
+            break;
 #ifdef PLATFORM_HAS_CONTROLLER
         case SDL_CONTROLLERDEVICEADDED:
             if (!controller) controller = SDL_GameControllerOpen(event.cdevice.which);

@@ -228,10 +228,10 @@ void MenuText::render(double xPos, double yPos) {
     renderY = proportionY * Render::getHeight();
 
     const float renderScale = scale * getScaleFactor();
+    text->setScale(renderScale);
     std::string wrapped = text->wrap(Render::getWidth());
     text->setText(wrapped);
 
-    text->setScale(renderScale);
     text->render(renderX, renderY);
     text->setText(originalText);
 }

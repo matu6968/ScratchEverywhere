@@ -78,6 +78,9 @@ class BlockExecutor {
     // If true, the project will stop at the end of the frame.
     static bool stopClicked;
 
+    // If true, the project will restart green-flag scripts at the end of the frame.
+    static bool greenFlagClicked;
+
     /**
      * Goes through every `block` in every `sprite` to find and run a block with the specified `opCode`.
      * @param opCodeToFind Name of the block to run

@@ -75,6 +75,8 @@ class Scratch {
     static void toggleDebugVars(const bool enabled);
 
     static bool hasNativeExtensions;
+    static std::string detectedMod;
+    static bool isUnknownMod;
 
     static float tempo;
 

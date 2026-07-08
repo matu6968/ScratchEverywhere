@@ -81,13 +81,11 @@ void MainMenu::init() {
     // let the user type what project they want to open
     std::string answer = Input::openSoftwareKeyboard(TranslationManager::getTranslation("ui.headless.projectPrompt").c_str());
 
-    const std::string ext = ".sb3";
-    if (answer.size() >= ext.size() &&
-        answer.compare(answer.size() - ext.size(), ext.size(), ext) == 0) {
-        answer = answer.substr(0, answer.size() - ext.size());
+    if (Unzip::hasProjectExtension(answer)) {
+        answer = answer.substr(0, answer.size() - 4);
     }
 
-    Unzip::filePath = OS::getScratchFolderLocation() + answer + ".sb3";
+    Unzip::filePath = Unzip::resolveProjectFile(OS::getScratchFolderLocation() + answer);
 
     MenuManager::loadProject();
     return;

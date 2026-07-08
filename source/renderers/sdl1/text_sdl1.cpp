@@ -236,7 +236,7 @@ std::vector<float> TextObjectSDL1::getStringSize(const std::string &txt) {
     if (!font) return {0.0f, 0.0f};
 
     int w, h;
-    TTF_SizeUTF8(font, text.c_str(), &w, &h);
+    TTF_SizeUTF8(font, txt.c_str(), &w, &h);
     return {w * scale, h * scale};
 }
 

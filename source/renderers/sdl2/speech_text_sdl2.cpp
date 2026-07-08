@@ -5,7 +5,13 @@
 #include <log.hpp>
 #include <os.hpp>
 
-SpeechTextObjectSDL2::SpeechTextObjectSDL2(const std::string &text, int maxWidth)
+#ifdef USE_CMAKERC
+#include <cmrc/cmrc.hpp>
+
+CMRC_DECLARE(romfs);
+#endif
+
+SpeechTextObjectSDL2::SpeechTextObjectSDL2(const std::string &text, int maxWidth, const std::string &fontPath, int fontSize)
     : TextObjectSDL2(text, 0, 0), SpeechText(text, maxWidth) {
     setColor(0x00);
     setCenterAligned(false); // easier for positioning logic
@@ -21,9 +27,17 @@ SpeechTextObjectSDL2::SpeechTextObjectSDL2(const std::string &text, int maxWidth
         pathFont.clear();
     }
 
-    font = TTF_OpenFont((OS::getRomFSLocation() + "gfx/ingame/fonts/NotoSans-Medium.ttf").c_str(), 16);
+    std::string resolvedFontPath = fontPath.empty() ? "gfx/ingame/fonts/NotoSans-Medium" : fontPath;
+    resolvedFontPath = OS::getRomFSLocation() + resolvedFontPath + ".ttf";
+
+#ifdef USE_CMAKERC
+    const auto &file = cmrc::romfs::get_filesystem().open(resolvedFontPath);
+    font = TTF_OpenFontRW(SDL_RWFromConstMem(file.begin(), file.size()), 1, fontSize);
+#else
+    font = TTF_OpenFont(resolvedFontPath.c_str(), fontSize);
+#endif
     if (!font) {
-        Log::logError("Failed to load speech font " + (OS::getRomFSLocation() + "gfx/ingame/fonts/NotoSans-Medium.ttf") + ": " + TTF_GetError());
+        Log::logError("Failed to load speech font " + resolvedFontPath + ": " + TTF_GetError());
     }
 
     platformSetText(wrapText());

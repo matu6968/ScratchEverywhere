@@ -37,6 +37,7 @@
   "ui.loading.extensions": "Ładowanie rozszerzeń",
   "ui.loading.finish": "Kończenie...",
   "ui.popup.extensions": "Uwaga! Ten projekt zawiera natywne rozszerzenia. Natywne rozszerzenia mają pełny dostęp do twojego urządzenia.",
+  "ui.popup.scratchMod": "Uwaga! Ten projekt został stworzony w modu Scratch. Kompatybilność nie jest gwarantowana i uruchomienie go jest na twoją własną odpowiedzialność.",
   "version.prefix.beta": "Beta Build",
   "version.prefix.release": "Release",
   "version.prefix.releaseCanidate": "Release Candidate",

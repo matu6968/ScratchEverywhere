@@ -164,7 +164,7 @@ void ProjectMenu::render() {
                 return;
             } else if (projectControl->selectedObject->imageId.find("projectBox") != std::string::npos) {
                 // normal sb3
-                Unzip::filePath = OS::getScratchFolderLocation() + projectControl->selectedObject->text->getText() + ".sb3";
+                Unzip::filePath = Unzip::resolveProjectFile(OS::getScratchFolderLocation() + projectControl->selectedObject->text->getText());
                 MenuManager::loadProject();
                 return;
             } else {

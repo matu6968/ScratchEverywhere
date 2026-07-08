@@ -76,7 +76,7 @@ std::vector<float> TextObjectC2D::getSize() {
 std::vector<float> TextObjectC2D::getStringSize(const std::string &txt) {
     C2D_Text tempText;
     C2D_TextBuf tempBuffer = C2D_TextBufNew(200);
-    C2D_TextFontParse(&tempText, *textClass.font, tempBuffer, text.c_str());
+    C2D_TextFontParse(&tempText, *textClass.font, tempBuffer, txt.c_str());
     C2D_TextOptimize(&tempText);
 
     float w, h;

@@ -9,7 +9,7 @@ class SpeechTextObjectSDL2 : public TextObjectSDL2, public SpeechText {
     void platformSetText(const std::string &text) override;
 
   public:
-    SpeechTextObjectSDL2(const std::string &text, int maxWidth = 200);
+    SpeechTextObjectSDL2(const std::string &text, int maxWidth = 200, const std::string &fontPath = "", int fontSize = 16);
     ~SpeechTextObjectSDL2() override;
 
     void setText(std::string txt) override;

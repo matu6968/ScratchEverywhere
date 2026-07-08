@@ -50,6 +50,8 @@ std::vector<std::unique_ptr<extensions::Extension>> Scratch::extensions;
 #include <epsonapi.h>
 #endif
 
+static bool suppressStopClickedHats = false;
+
 std::vector<Block *> Scratch::blocks;
 std::vector<Sprite *> Scratch::sprites;
 Sprite *Scratch::stageSprite;
@@ -61,6 +63,8 @@ std::vector<ScriptThread *> Pools::threads;
 BlockExecutor executor;
 
 bool Scratch::hasNativeExtensions = false;
+std::string Scratch::detectedMod;
+bool Scratch::isUnknownMod = false;
 
 float Scratch::tempo = 60;
 
@@ -254,6 +258,19 @@ bool Scratch::startScratchProject() {
 
 #ifdef ENABLE_MENU
 
+    if (isUnknownMod) {
+        PopupMenu *popupMenu = new PopupMenu(PopupType::ACCEPT_OR_CANCEL, TranslationManager::getTranslation("ui.popup.scratchMod"));
+        MenuManager::changeMenu(popupMenu);
+        while (Render::appShouldRun() && popupMenu->accepted == -1) {
+            MenuManager::render();
+        }
+        popupMenu->cleanup();
+        if (popupMenu->accepted == 0) {
+            cleanupScratchProject();
+            return false;
+        }
+    }
+
     if (hasNativeExtensions) {
         PopupMenu *popupMenu = new PopupMenu(PopupType::ACCEPT_OR_CANCEL, TranslationManager::getTranslation("ui.popup.extensions"));
         MenuManager::changeMenu(popupMenu);
@@ -359,6 +376,8 @@ void Scratch::cleanupScratchProject() {
     FPS = 30;
     counter = 0;
     hasNativeExtensions = false;
+    detectedMod.clear();
+    isUnknownMod = false;
     turbo = false;
     hqpen = false;
     fencing = true;
@@ -447,7 +466,9 @@ void Scratch::resetInput(Block *block, std::string inputName) {
 }
 
 void Scratch::greenFlagClicked() {
+    suppressStopClickedHats = true;
     stopClicked();
+    suppressStopClickedHats = false;
     BlockExecutor::stopClicked = false;
     answer.clear();
     BlockExecutor::timer.start();
@@ -496,6 +517,9 @@ void Scratch::stopClicked() {
         Scratch::sprites[i]->layer = (Scratch::sprites.size() - 1) - i;
     }
     BlockExecutor::sortSprites = false;
+    if (!suppressStopClickedHats) {
+        BlockExecutor::runAllBlocksByOpcode("event_whenstopclicked");
+    }
 }
 
 std::pair<float, float> Scratch::screenToScratchCoords(float screenX, float screenY, int windowWidth, int windowHeight) {

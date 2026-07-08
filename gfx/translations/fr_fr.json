@@ -37,6 +37,7 @@
   "ui.loading.extensions": "Chargement des extensions",
   "ui.loading.finish": "Terminé !",
   "ui.popup.extensions": "Attention! Ce projet contient des extensions natives. Les extensions natives ont un accès complet à votre appareil.",
+  "ui.popup.scratchMod": "Warning! This project was made in a Scratch mod. Compatibility is not guaranteed and running it is at your own risk.",
   "version.prefix.beta": "Version bêta",
   "version.prefix.release": "Sorties",
   "version.prefix.releaseCanidate": "Sortie Candidate",

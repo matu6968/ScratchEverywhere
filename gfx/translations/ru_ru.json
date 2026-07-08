@@ -37,6 +37,7 @@
   "ui.loading.extensions": "Загрузка расширений...",
   "ui.loading.finish": "Завершение загрузки!",
   "ui.popup.extensions": "Внимание! Проект использует нативные расширения. Нативные расширения имеют полный доступ к устройству.",
+  "ui.popup.scratchMod": "Warning! This project was made in a Scratch mod. Compatibility is not guaranteed and running it is at your own risk.",
   "version.prefix.beta": "Бета сборка",
   "version.prefix.release": "Релиз",
   "version.prefix.releaseCanidate": "Кандидат на релиз",

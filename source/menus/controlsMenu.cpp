@@ -15,7 +15,7 @@ ControlsMenu::~ControlsMenu() {
 
 void ControlsMenu::init() {
 
-    Unzip::filePath = OS::getScratchFolderLocation() + projectPath + ".sb3";
+    Unzip::filePath = Unzip::resolveProjectFile(OS::getScratchFolderLocation() + projectPath);
     if (!Unzip::load()) {
         Log::logError("Failed to load project for ControlsMenu.");
         OS::toExit = true;
@@ -32,7 +32,7 @@ void ControlsMenu::init() {
             if (block->inputs["KEY_OPTION"].inputType == ParsedInput::VALUE) {
                 buttonCheck = block->inputs["KEY_OPTION"].value.asString();
             }
-        } else if (block->opcode == "event_whenkeypressed") {
+        } else if (block->opcode == "event_whenkeypressed" || block->opcode == "event_whenkeyhit") {
             buttonCheck = block->fields["KEY_OPTION"].value;
         } else if (block->opcode == "makeymakey_whenMakeyKeyPressed") {
             if (block->inputs["KEY"].inputType == ParsedInput::VALUE) {

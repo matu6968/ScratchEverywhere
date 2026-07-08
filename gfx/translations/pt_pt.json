@@ -36,6 +36,7 @@
   "ui.loading.extensions": "A carregar Extenções",
   "ui.loading.finish": "Finalizando!",
   "ui.popup.extensions": "Aviso! Este projeto contém Extenções Nativas. As Extensões Nativas têm acesso total ao seu dispositivo!",
+  "ui.popup.scratchMod": "Warning! This project was made in a Scratch mod. Compatibility is not guaranteed and running it is at your own risk.",
   "version.prefix.beta": "Construção Beta",
   "version.prefix.release": "Lançamento",
   "version.prefix.releaseCanidate": "Candidato a Lançamento",
