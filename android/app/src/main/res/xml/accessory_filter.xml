@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Which accessories open Scratch Everywhere! when they are plugged in: the ones that identify themselves with this
+     manufacturer and model during the Android Open Accessory handshake. -->
+<resources>
+    <usb-accessory manufacturer="ScratchEverywhere" model="AOA" />
+</resources>

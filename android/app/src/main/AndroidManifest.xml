@@ -20,6 +20,9 @@
     <uses-feature
         android:name="android.hardware.usb.host"
         android:required="false" />
+    <uses-feature
+        android:name="android.hardware.usb.accessory"
+        android:required="false" />
 
     <!-- External mouse input events -->
     <uses-feature
@@ -55,6 +58,14 @@
             <intent-filter>
                 <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
             </intent-filter>
+            <!-- Android Open Accessory: opens the app when a microcontroller that identifies itself as in
+                 res/xml/accessory_filter.xml is plugged in -->
+            <intent-filter>
+                <action android:name="android.hardware.usb.action.USB_ACCESSORY_ATTACHED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.hardware.usb.action.USB_ACCESSORY_ATTACHED"
+                android:resource="@xml/accessory_filter" />
         </activity>
 
         <!-- Receives .sb3 projects ("Open with" / "Share") and copies them into the projects folder -->
