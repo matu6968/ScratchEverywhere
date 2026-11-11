@@ -29,12 +29,18 @@ void BlockExecutor::setVariableValue(const std::string &variableId, const Value 
         },
                    var.value);
     };
-
+    [[maybe_unused]] const auto syncCloudVar = [](Variable &var) {
+#ifdef ENABLE_CLOUDVARS
+        if (var.cloud && cloudConnection) cloudConnection->set(var.name, getVariableValueAs<std::string>(&var));
+#endif
+    };
     // Set sprite variable
     if (sprite != nullptr) {
         const auto it = sprite->variables.find(variableId);
         if (it != sprite->variables.end()) {
             assignToVar(it->second);
+            // Scripts on the Stage find the (cloud) variables of the Stage here, because the Stage is a sprite too
+            syncCloudVar(it->second);
             return;
         }
     }
@@ -43,13 +49,7 @@ void BlockExecutor::setVariableValue(const std::string &variableId, const Value 
     auto globalIt = Scratch::stageSprite->variables.find(variableId);
     if (globalIt != Scratch::stageSprite->variables.end()) {
         assignToVar(globalIt->second);
-#ifdef ENABLE_CLOUDVARS
-        if (globalIt->second.cloud) {
-            if (cloudConnection) {
-                cloudConnection->set(globalIt->second.name, getVariableValueAs<std::string>(&globalIt->second));
-            }
-        }
-#endif
+        syncCloudVar(globalIt->second);
         return;
     }
 

@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">Scratch Everywhere!</string>
+	<string name="exit_hint">Press and hold to exit the app</string>
+	<string name="import_success">Project imported successfully!</string>
+	<string name="import_failed">Oops! Something went wrong while importing this project</string>
+	<string name="import_bulk">Finished project bulk import: %1$d successful, %2$d failed</string>
+	<string name="import_not_project">This file is not a Scratch project</string>
+	<string name="import_exists">This project was already imported. Would you like to overwrite it?</string>
+
+	<!-- FreeDroidWarn -->
+	<string name="freeDroid_dialog_Warning">Google has announced that, starting in 2026/2027, all apps on certified Android devices will require the developer to submit personal identity details directly to Google. Since the developers of this app do not agree to this requirement, this app will no longer work on certified Android devices after that time.</string>
+	<string name="freeDroid_dialog_more_info">Details</string>
+	<string name="freeDroid_solution">Solution</string>
+</resources>

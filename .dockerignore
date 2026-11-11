@@ -7,6 +7,10 @@ build/
 build-*/
 romfs/gfx
 scratch-everywhere/
+android/.gradle/
+android/build/
+android/app/build/
+android/app/.cxx/
 
 # CMake
 cmake/CPM.cmake

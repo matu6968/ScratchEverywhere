@@ -1,5 +1,6 @@
 #pragma once
 #include "nonstd/expected.hpp"
+#include <array_compat.hpp>
 #include <input.hpp>
 #include <math.hpp>
 #include <runtime.hpp>

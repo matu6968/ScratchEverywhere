@@ -42,6 +42,9 @@ extern SDL_GameController *controller;
 #define CONTROLLER_DEADZONE_Y 18000
 #define CONTROLLER_DEADZONE_TRIGGER 1000
 #endif
+#ifdef __ANDROID__
+extern bool backPressed;
+#endif
 #ifdef PLATFORM_HAS_TOUCH
 extern bool touchActive;
 extern SDL_Point touchPosition;
@@ -155,12 +158,22 @@ void InputDevice_SDL2::getInput() {
         // play: 450
 #else
         else if (keyName == "return") keyName = "enter";
+#ifdef __ANDROID__
+        else if (keyName == "ac back") keyName = "back";
+#endif
 #endif
         else if (keyName == "left shift" || keyName == "right shift") keyName = "shift";
         else if (keyName == "left ctrl" || keyName == "right ctrl") keyName = "control";
 
         Input::inputKeys.push_back(keyName);
     }
+
+#ifdef __ANDROID__
+    if (backPressed) {
+        backPressed = false;
+        if (std::find(Input::inputKeys.begin(), Input::inputKeys.end(), "back") == Input::inputKeys.end()) Input::inputKeys.push_back("back");
+    }
+#endif
 #endif
 
 #ifdef PLATFORM_HAS_CONTROLLER

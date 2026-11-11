@@ -92,6 +92,8 @@ elseif(NINTENDO_WIIU)
     include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/platforms/wiiu.cmake")
 elseif(WEBOS)
     include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/platforms/webos.cmake")
+elseif(ANDROID)
+    include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/platforms/android.cmake")
 elseif(XBOX)
     # I give up, putting this here seems to be the only fix for it to properly patch on builds
     cl_add_dep(nxdk)
@@ -334,7 +336,7 @@ if(NOT SE_SVG)
     list(FILTER GFXFILES EXCLUDE REGEX ".*/gfx/ingame/fonts/.*")
 endif()
 
-if(NINTENDO_DS OR NINTENDO_3DS OR NINTENDO_GAMECUBE OR PSP OR XBOX OR (SE_PLATFORM STREQUAL "xbox"))
+if(NINTENDO_DS OR NINTENDO_3DS OR NINTENDO_GAMECUBE OR PSP OR XBOX OR (SE_PLATFORM STREQUAL "xbox") OR SE_ANDROID_LEGACY)
     list(FILTER GFXFILES EXCLUDE REGEX ".*/gfx/menu/Ubuntu-Bold.ttf")
 endif()
 
@@ -349,7 +351,7 @@ foreach(file IN LISTS GFXFILES)
     configure_file("${file}" "${DEST_PATH}" COPYONLY)
 endforeach()
 
-if((NINTENDO_DS OR NINTENDO_GAMECUBE OR PSP OR NINTENDO_3DS OR XBOX OR (SE_PLATFORM STREQUAL "xbox")) AND (SE_MENU OR NINTENDO_DS OR XBOX OR (SE_PLATFORM STREQUAL "xbox")))
+if((NINTENDO_DS OR NINTENDO_GAMECUBE OR PSP OR NINTENDO_3DS OR XBOX OR (SE_PLATFORM STREQUAL "xbox") OR SE_ANDROID_LEGACY) AND (SE_MENU OR NINTENDO_DS OR XBOX OR (SE_PLATFORM STREQUAL "xbox")))
     configure_file("${CMAKE_CURRENT_SOURCE_DIR}/gfx/nds/Ubuntu-Bold.ttf" "${CMAKE_CURRENT_SOURCE_DIR}/romfs/gfx/menu/Ubuntu-Bold.ttf" COPYONLY)
 endif()
 
@@ -429,6 +431,9 @@ if(SE_EXECUTABLE)
         cl_add_dep(scratch-everywhere libretro)
     elseif(SE_LIBRARY)
         add_library(scratch-everywhere ${SOURCE_FILES})
+    elseif(ANDROID)
+        # Android apps are loaded as shared libraries by SDLActivity, which calls SDL_main
+        add_library(scratch-everywhere SHARED ${SOURCE_FILES})
     else()
         add_executable(scratch-everywhere WIN32 ${SOURCE_FILES})
     endif()
@@ -484,6 +489,7 @@ if(SE_BUNDLE)
         DOWNLOAD_ONLY
         REPO https://github.com/gradylink/bundle.cmake.git
         REF 21611e9b619952e64eb6d8f57f1c521eccf49b03
+        PATCHES "${CMAKE_CURRENT_SOURCE_DIR}/cmake/patches/bundle-cmake.patch"
     )
     include("${CL_SOURCE_DIR}/cmake/bundle.cmake")
 

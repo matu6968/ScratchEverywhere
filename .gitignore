@@ -70,6 +70,8 @@ main.code-workspace
 *.wbfs
 *.vpk
 *.ipk
+*.apk
+*.aab
 *.nds
 *.pkg
 romfs/sample.ogg
@@ -101,3 +103,14 @@ CMakeSettings.json
 
 # Debug files
 perf.data*
+
+# Android
+.gradle/
+.idea/
+.cxx/
+*.keystore
+local.properties
+android/sdl-java/
+android/app/legacy-libs/
+android/app/build/
+android/build/

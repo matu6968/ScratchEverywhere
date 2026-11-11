@@ -12,13 +12,15 @@ elseif(PS4)
 	target_link_libraries(renderer_interface INTERFACE EGL GLESv2)
 elseif(EMSCRIPTEN)
 	target_link_options(renderer_interface INTERFACE "-sMIN_WEBGL_VERSION=2" "-sMAX_WEBGL_VERSION=2" "-sFULL_ES3=1")
+elseif(ANDROID)
+	target_link_libraries(renderer_interface INTERFACE GLESv3 EGL)
 else()
 	cl_add_dep(renderer_interface GLAD)
 endif()
 
 cl_add_dep(renderer_interface stb_truetype)
 
-if(NINTENDO_SWITCH OR PS4 OR EMSCRIPTEN)
+if(NINTENDO_SWITCH OR PS4 OR EMSCRIPTEN OR ANDROID)
 	set(SE_WINDOWING_VALID_OPTIONS "sdl2")
 
 	if(NOT DEFINED SE_AUDIO_ENGINE_DEFAULT)

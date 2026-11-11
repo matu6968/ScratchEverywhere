@@ -4,7 +4,9 @@
 #include "renderer.hpp"
 #include <algorithm>
 #include <cerrno>
+#if __has_include(<charconv>)
 #include <charconv>
+#endif
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>

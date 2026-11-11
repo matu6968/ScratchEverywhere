@@ -1,4 +1,5 @@
 #pragma once
+#include <array_compat.hpp>
 #include <se_export.hpp>
 #include <types.hpp>
 

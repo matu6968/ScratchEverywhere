@@ -27,10 +27,19 @@ bool touchActive = false;
 SDL_Point touchPosition;
 #endif
 
+#ifdef __ANDROID__
+// Set when the Back button goes down, so a press shorter than a frame isn't missed by the keyboard state polling
+bool backPressed = false;
+#endif
+
 WindowSDL2::WindowSDL2(int width, int height, const std::string &title) {
     Input::setGlobalInputDevice(new InputDevice_SDL2);
 #if defined(VITA)
     SDL_setenv("VITA_DISABLE_TOUCH_BACK", "1", 1);
+#elif defined(__ANDROID__)
+    SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
+    // Back is used to open the pause menu, so SDL must not close the activity on it
+    SDL_SetHint(SDL_HINT_ANDROID_TRAP_BACK_BUTTON, "1");
 #endif
 
     uint32_t sdlFlags = 0;
@@ -53,7 +62,7 @@ WindowSDL2::WindowSDL2(int width, int height, const std::string &title) {
         SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
         SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
     } else if (Render::currentRenderer == Renderers::OpenGLCore) {
-#if defined(__EMSCRIPTEN__) || defined(__PS4__)
+#if defined(__EMSCRIPTEN__) || defined(__PS4__) || defined(__ANDROID__)
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
@@ -70,7 +79,7 @@ WindowSDL2::WindowSDL2(int width, int height, const std::string &title) {
         SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
     }
 
-#ifdef WEBOS
+#if defined(WEBOS) || defined(__ANDROID__)
     Uint32 flags = SDL_WINDOW_FULLSCREEN | SDL_WINDOW_ALLOW_HIGHDPI;
 #else
     Uint32 flags = SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
@@ -89,12 +98,16 @@ WindowSDL2::WindowSDL2(int width, int height, const std::string &title) {
         context = SDL_GL_CreateContext(window);
         if (!context) {
             error = "Failed to create OpenGL context: " + std::string(SDL_GetError());
+            // The renderer only deletes this object on failure, but some platforms (Android) only allow
+            // one window, which would stop the next renderer in line from being able to start.
+            SDL_DestroyWindow(window);
+            window = nullptr;
             return;
         }
 
         SDL_GL_SetSwapInterval(1); // VSync
 
-#if defined(RENDERER_OPENGL_CORE) && !defined(__EMSCRIPTEN__) && !defined(__PS4__)
+#if defined(RENDERER_OPENGL_CORE) && !defined(__EMSCRIPTEN__) && !defined(__PS4__) && !defined(__ANDROID__)
 #ifdef __SWITCH__
         if (!gladLoadGL()) {
 #else
@@ -150,9 +163,9 @@ void WindowSDL2::cleanup() {
     if (controller) SDL_GameControllerClose(controller);
 #endif
 
-    if (Render::currentRenderer == Renderers::OpenGL || Render::currentRenderer == Renderers::OpenGLCore)
+    if (context && (Render::currentRenderer == Renderers::OpenGL || Render::currentRenderer == Renderers::OpenGLCore))
         SDL_GL_DeleteContext(context);
-    SDL_DestroyWindow(window);
+    if (window) SDL_DestroyWindow(window);
 }
 
 bool WindowSDL2::shouldClose() {
@@ -207,6 +220,11 @@ void WindowSDL2::pollEvents() {
             break;
         case SDL_FINGERUP:
             touchActive = false;
+            break;
+#endif
+#ifdef __ANDROID__
+        case SDL_KEYDOWN:
+            if (event.key.keysym.scancode == SDL_SCANCODE_AC_BACK) backPressed = true;
             break;
 #endif
 #if defined(__PC__)

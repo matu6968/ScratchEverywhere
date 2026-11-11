@@ -1,0 +1,29 @@
+--- a/src/bundle.hpp	2026-10-22 20:49:23.932026126 +0200
++++ b/src/bundle.hpp	2026-10-22 20:49:23.957458548 +0200
+@@ -5,7 +5,10 @@
+ 
+ #include <cstddef>
+ #include <cstdlib>
++#if __has_include(<filesystem>)
+ #include <filesystem>
++#define BUNDLE_HAS_FILESYSTEM 1
++#endif
+ #include <fstream>
+ #include <istream>
+ #include <memory>
+@@ -221,6 +224,7 @@
+     return buf;
+   }
+ 
++#ifdef BUNDLE_HAS_FILESYSTEM
+   /** Streams the entry's decompressed content directly to a file. */
+   void extract_to(const entry &e, const std::filesystem::path &destination, int *ec = nullptr) const {
+     if (ec) {
+@@ -251,6 +255,7 @@
+       BUNDLE_REPORT(ec, rc, "bundle::archive::extract_to: bundle_read failed");
+     }
+   }
++#endif
+ 
+   istream open(const entry &e, int *ec = nullptr) const { return istream(e, ec); }
+ 

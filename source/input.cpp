@@ -125,12 +125,21 @@ void Input::applyControls(std::string controlsFilePath) {
                     if (key.empty() || value.empty()) continue;
                     // A key can be bound to several physical inputs, e.g. both
                     // D-pad Up and left-stick Up for arrow-only Scratch games.
+#if __cplusplus < 202002L
+                    // A C++17 lambda cannot capture a structured binding (NDK r16b).
+                    const std::string scratchKey = key;
+#endif
                     auto bind = [&](const nlohmann::json &button) {
                         if (!button.is_string()) return;
                         const auto name = button.get<std::string>();
                         if (name.empty()) return;
+#if __cplusplus < 202002L
+                        Input::inputControls[name] = scratchKey;
+                        Log::log("Loaded control: " + scratchKey + " -> " + name);
+#else
                         Input::inputControls[name] = key;
                         Log::log("Loaded control: " + key + " -> " + name);
+#endif
                     };
                     if (value.is_array()) {
                         for (const auto &button : value)

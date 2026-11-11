@@ -18,6 +18,10 @@
 #include <orbis/libkernel.h>
 #endif
 
+#if defined(__ANDROID__)
+#include <android/log.h>
+#endif
+
 #ifdef __XBOX__
 #include <direct.h>
 #include <hal/debug.h>
@@ -255,21 +259,33 @@ static std::string lastLog;
 void Log::log(std::string message) {
     if (lastLog == message) return;
     lastLog = message;
+#ifdef __ANDROID__
+    __android_log_print(ANDROID_LOG_INFO, "ScratchEverywhere", "%s", message.c_str());
+#else
     std::cout << message << std::endl;
+#endif
     writeToFile(message);
 }
 
 void Log::logWarning(std::string message) {
     if (lastLog == message) return;
     lastLog = message;
+#ifdef __ANDROID__
+    __android_log_print(ANDROID_LOG_WARN, "ScratchEverywhere", "%s", message.c_str());
+#else
     std::cout << "\x1b[1;33m" << "Warning: " << message << "\x1b[0m" << std::endl;
+#endif
     writeToFile("<Warning> " + message);
 }
 
 void Log::logError(std::string message) {
     if (lastLog == message) return;
     lastLog = message;
+#ifdef __ANDROID__
+    __android_log_print(ANDROID_LOG_ERROR, "ScratchEverywhere", "%s", message.c_str());
+#else
     std::cerr << "\x1b[1;31m" << "Error: " << message << "\x1b[0m" << std::endl;
+#endif
     writeToFile("<Error> " + message);
 }
 
@@ -282,10 +298,18 @@ void Log::logCritical(std::string message, bool fatal) {
     if (lastLog == message) return;
     lastLog = message;
     if (fatal) {
+#ifdef __ANDROID__
+        __android_log_print(ANDROID_LOG_FATAL, "ScratchEverywhere", "%s", message.c_str());
+#else
         std::cerr << "\x1b[1;31m" << "Fatal: " << message << "\x1b[0m" << std::endl;
+#endif
         writeToFile("<Fatal> " + message);
     } else {
+#ifdef __ANDROID__
+        __android_log_print(ANDROID_LOG_ERROR, "ScratchEverywhere", "Critical: %s", message.c_str());
+#else
         std::cerr << "\x1b[1;31m" << "Critical: " << message << "\x1b[0m" << std::endl;
+#endif
         writeToFile("<Critical> " + message);
     }
 #ifdef USE_LIBDLGMOD

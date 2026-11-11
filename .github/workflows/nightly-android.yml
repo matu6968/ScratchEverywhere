@@ -1,0 +1,55 @@
+name: Android Nightly Build
+
+on:
+  push:
+    paths:
+      - CMakeLists.txt
+      - cmake/platforms/android.cmake
+      - cmake/renderers/sdl2.cmake
+      - cmake/renderers/opengl_core.cmake
+      - cmake/windowing/sdl2.cmake
+      - cmake/audio/sdl2.cmake
+      - cmake/recipes/**
+      - cmake/patches/*
+      - android/**
+      - source/runtime/**
+      - source/platforms/
+      - source/platforms/android/**
+      - source/renderers/sdl2/**
+      - source/renderers/opengl_core/**
+      - source/windowing/sdl2/**
+      - source/audio/sdl2/**
+      - source/*
+      - source/menus/**
+      - gfx/menu/**
+      - include/**
+      - .github/workflows/nightly-android.yml
+      - docker/Dockerfile.android
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  nightly:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Create `romfs` directory
+        run: mkdir romfs
+      - name: Build and Export
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.android
+          target: exporter
+          outputs: type=local,dest=.
+      - name: Upload Artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: Scratch Everywhere! Android Nightly
+          path: scratch-android.apk

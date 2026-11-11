@@ -1,0 +1,183 @@
+apply plugin: "com.android.application"
+
+// -Plegacy builds for old devices (Android 4.0.x, ARMv6). NDK r16b is the last release that
+// can target armeabi, and the Android Gradle Plugin cannot drive it, so buildLegacyNative
+// configures and builds those libraries (and their older SDL2) before the APK is packaged.
+def legacy = project.hasProperty("legacy")
+
+android {
+    namespace "io.github.scratcheverywhere"
+    compileSdk {
+        version = release(37) {
+            minorApiLevel = 1
+        }
+    }
+    ndkVersion "30.0.16248370"
+
+    defaultConfig {
+        minSdk legacy ? 15 : 21
+        // Android 4.0.x's Dalvik aborts ("Invalid indirect reference") on the JNI references SDL gets back when an app
+        // targets 14 or newer. At 13 or below it turns on its JNI workaround mode and everything works.
+        targetSdk legacy ? 13 : 37
+        versionCode 1
+        versionName "1.2.1" // Keep in sync with the project version in CMakeLists.txt
+
+        if (!legacy) {
+            externalNativeBuild {
+                cmake {
+                    // e.g. ./gradlew assembleDebug -Pabis=arm64-v8a
+                    abiFilters((project.hasProperty("abis") ? project.getProperty("abis") : "arm64-v8a,armeabi-v7a,x86_64").split(","))
+                    arguments "-DANDROID_STL=c++_static", "-DSE_RENDERER=all"
+                }
+            }
+        }
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    buildTypes {
+        debug {
+            // Debuggable apps get CheckJNI on Android 4.0.x, and with it Dalvik doesn't enable the JNI
+            // workaround mode that targetSdk 13 (above) relies on.
+            if (legacy) debuggable false
+        }
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+        }
+    }
+
+    if (!legacy) {
+        externalNativeBuild {
+            cmake {
+                path file("../../CMakeLists.txt")
+                version "3.31.5"
+            }
+        }
+    }
+
+    sourceSets {
+        main {
+            // SDL's Java glue (org.libsdl.app) is copied out of the SDL2 source tree by the CMake
+            // configure step, so it always matches the native SDL2 build exactly.
+            java.srcDir "../sdl-java/${legacy ? 'legacy' : 'modern'}"
+            if (legacy) jniLibs.srcDir "legacy-libs"
+        }
+    }
+
+    if (legacy) {
+        // NDK r30's strip does not understand the armeabi objects r16b produced. buildLegacyNative
+        // already stripped them.
+        packaging {
+            jniLibs {
+                keepDebugSymbols += "**/*.so"
+            }
+        }
+    }
+
+    lint {
+        abortOnError false
+    }
+}
+
+// The APK is named scratch-android[-legacy]-<variant>.apk
+base {
+    archivesName = legacy ? "scratch-android-legacy" : "scratch-android"
+}
+
+// The SDL Java glue has to exist before Java compilation, and is only there once CMake has configured.
+if (!legacy) {
+    tasks.configureEach { task ->
+        if (task.name.startsWith("compile") && task.name.endsWith("JavaWithJavac")) {
+            task.dependsOn(tasks.matching { it.name.startsWith("configureCMake") })
+        }
+    }
+} else {
+    def sdkDir = System.getenv("ANDROID_HOME") ?: System.getenv("ANDROID_SDK_ROOT") ?: "${System.getProperty("user.home")}/Android/Sdk"
+    def ndkR16b = System.getenv("NDK_R16B") ?: new File(sdkDir, "ndk/16.1.4479499").absolutePath
+    def cmakeBin = System.getenv("CMAKE_BIN") ?: new File(sdkDir, "cmake/3.31.5/bin").absolutePath
+    def sourceRoot = file("../..")
+    def legacyBuildDir = new File(sourceRoot, "build/android-armeabi-r16b")
+    def legacyOutDir = file("legacy-libs/armeabi")
+
+    def execOps = services.get(org.gradle.process.ExecOperations)
+    tasks.register("buildLegacyNative") {
+        group = "build"
+        description = "Build armeabi libscratch.so and libSDL2.so with NDK r16b"
+        doLast {
+            def toolchain = new File(ndkR16b, "build/cmake/android.toolchain.cmake")
+            if (!toolchain.exists()) {
+                throw new GradleException("NDK r16b not found at ${ndkR16b}. Set NDK_R16B to the NDK r16b directory.")
+            }
+            def cmake = new File(cmakeBin, "cmake")
+            if (!cmake.exists()) {
+                throw new GradleException("CMake 3.31.5 not found at ${cmake}. Set CMAKE_BIN to the directory that contains cmake.")
+            }
+            def strip = new File(ndkR16b, "toolchains/arm-linux-androideabi-4.9/prebuilt/linux-x86_64/bin/arm-linux-androideabi-strip")
+            if (!strip.exists()) {
+                throw new GradleException("NDK r16b strip tool not found at ${strip}.")
+            }
+
+            def envPath = cmakeBin + File.pathSeparator + System.getenv("PATH")
+            execOps.exec {
+                environment "PATH", envPath
+                workingDir sourceRoot
+                commandLine cmake.absolutePath, "-S", sourceRoot.absolutePath, "-B", legacyBuildDir.absolutePath, "-G", "Ninja",
+                    "-DCMAKE_TOOLCHAIN_FILE=${toolchain.absolutePath}",
+                    "-DANDROID_ABI=armeabi",
+                    "-DANDROID_PLATFORM=android-15",
+                    "-DANDROID_STL=c++_static",
+                    "-DANDROID_TOOLCHAIN=clang",
+                    "-DANDROID_ARM_MODE=arm",
+                    "-DSE_RENDERER=all",
+                    "-DCMAKE_BUILD_TYPE=Release"
+            }
+            execOps.exec {
+                environment "PATH", envPath
+                workingDir sourceRoot
+                commandLine cmake.absolutePath, "--build", legacyBuildDir.absolutePath, "-j", "${Runtime.runtime.availableProcessors()}"
+            }
+
+            def scratch = new File(legacyBuildDir, "libscratch.so")
+            if (!scratch.exists()) {
+                throw new GradleException("libscratch.so was not produced at ${scratch}.")
+            }
+            def sdl = null
+            def catalog = new File(legacyBuildDir, ".cache/catalog")
+            if (catalog.isDirectory()) {
+                catalog.eachFileRecurse { candidate ->
+                    if (sdl == null && candidate.name == "libSDL2.so") sdl = candidate
+                }
+            }
+            if (sdl == null) {
+                throw new GradleException("libSDL2.so was not found under ${catalog}.")
+            }
+
+            legacyOutDir.mkdirs()
+            project.copy {
+                from scratch
+                from sdl
+                into legacyOutDir
+            }
+            execOps.exec {
+                commandLine strip.absolutePath, "--strip-unneeded",
+                    new File(legacyOutDir, "libscratch.so").absolutePath,
+                    new File(legacyOutDir, "libSDL2.so").absolutePath
+            }
+        }
+    }
+
+    // preBuild runs before Java compilation (SDL's Java glue is copied during CMake configure)
+    // and before jniLibs are merged into the APK.
+    tasks.configureEach { task ->
+        if (task.name == "preBuild") {
+            task.dependsOn("buildLegacyNative")
+        }
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ["*.jar"], dir: "libs")
+}

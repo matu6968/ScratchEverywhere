@@ -20,6 +20,9 @@
 #endif
 #ifdef ENABLE_NATIVE_EXTENSIONS
 #include <dlfcn.h>
+#ifdef __ANDROID__
+#include <nativelibs.hpp>
+#endif
 #endif
 
 #ifdef USE_BUNDLE
@@ -215,9 +218,16 @@ bool Parser::loadExtensions(const nlohmann::json &json) {
 #ifdef ENABLE_NATIVE_EXTENSIONS
         const std::string &nativePath = folder + targetID + libraryExtension;
         if (FileSystem::fileExists(nativePath)) {
-            void *extensionHandle = dlopen(nativePath.c_str(), RTLD_NOW | RTLD_GLOBAL);
+#ifdef __ANDROID__
+            // Code can't be loaded from external storage on Android
+            const std::string loadPath = AndroidNativeLibs::stage(nativePath);
+#else
+            const std::string &loadPath = nativePath;
+#endif
+            void *extensionHandle = loadPath.empty() ? nullptr : dlopen(loadPath.c_str(), RTLD_NOW | RTLD_GLOBAL);
             if (!extensionHandle) {
-                Log::logCritical("Failed to load native extension, '" + targetID + "', dlerror: " + dlerror(), false);
+                const char *error = dlerror();
+                Log::logCritical("Failed to load native extension, '" + targetID + "', dlerror: " + (error ? error : "unknown"), false);
             } else {
                 Log::log("Loaded native extension: " + targetID);
                 hasNativeExts = true;
